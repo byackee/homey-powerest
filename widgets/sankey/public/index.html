@@ -56,14 +56,17 @@
   .sub { font-size: 11px; color: var(--text-secondary); }
   .sub b { color: var(--text-primary); font-weight: 600; }
   svg { flex: 1; width: 100%; display: block; }
-  .nname { font-size: 11px; font-weight: 600; fill: var(--text-primary); }
-  .nval  { font-size: 10px; fill: var(--text-secondary); }
-  .nname.dim, .nval.dim { fill: var(--text-secondary); }
-  .box { stroke: var(--surface-1); stroke-width: 1.5; }
-  .edge { stroke: none; }
-  .ribbon { opacity: .3; }
-  .ribbon:hover { opacity: .6; }
-  .box:hover { filter: brightness(.97); }
+  /* Le texte porte des jetons de texte, jamais la couleur de la série : sur fond clair, trois
+     de nos teintes validées n'atteignent pas le contraste d'un texte. Le halo le détache du ruban. */
+  .lbl { font-size: 11px; fill: var(--text-primary);
+         paint-order: stroke fill; stroke: var(--surface-1); stroke-width: 3.5px; stroke-linejoin: round; }
+  .lbl .v { font-weight: 650; }
+  .sub2 { font-size: 9.5px; fill: var(--text-secondary);
+          paint-order: stroke fill; stroke: var(--surface-1); stroke-width: 3.5px; }
+  .lbl.dim { fill: var(--text-secondary); }
+  .bar { stroke: none; }
+  .ribbon { opacity: .32; }
+  .ribbon:hover { opacity: .62; }
   .empty { font-size: 12px; color: var(--text-secondary); padding: 20px 4px; }
   #tip {
     position: absolute; pointer-events: none; opacity: 0; transition: opacity .1s;
@@ -85,7 +88,7 @@
   function onHomeyReady(Homey) {
     'use strict';
 
-    var W = 1000, X_SRC = 3, W_SRC = 128, X_ZONE = 302, W_ZONE = 208, X_DEV = 698, X_END = 994, GAP_ZONE = 4, GAP_DEV = 3;
+    var W = 1000, NODE = 8, X_SRC = 4, X_ZONE = 412, X_DEV = 796, X_END = 994, GAP_ZONE = 4, GAP_DEV = 3;
     var SLOTS = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6'];
     var svg = document.getElementById('svg');
     var tip = document.getElementById('tip');
@@ -137,35 +140,30 @@
     }
 
     /**
-     * Un nœud est une BOÎTE qui porte son nom et sa valeur, comme dans les cartes Sankey de Home
-     * Assistant — et non une barre fine avec l'étiquette à côté.
+     * Un nœud est une BARRE FINE, et son étiquette se pose à côté, par-dessus le ruban.
      *
-     * Une différence assumée avec le look d'origine : là-bas le texte est blanc sur un aplat de
-     * couleur. Trois teintes de notre palette validée n'ont pas le contraste nécessaire pour ça
-     * (aqua 2,7:1, jaune 2,1:1, magenta 2,6:1 sur fond clair). La boîte est donc un aplat CLAIR de
-     * la teinte avec un liseré plein : même lecture, même identité, sans texte illisible.
+     * C'est la géométrie qui produit l'impression de flux : les rubans occupent presque toute la
+     * largeur et le regard suit la matière, au lieu de buter sur des colonnes de rectangles. Une
+     * première version avait fait l'inverse — des boîtes larges portant leur texte — et les rubans
+     * n'étaient plus que des raccords entre des blocs.
+     *
+     * L'étiquette met la VALEUR avant le nom : c'est la grandeur qu'on compare d'une bande à
+     * l'autre, et l'aligner à gauche la rend lisible en colonne.
      */
-    function nodeBox(x, y, w, h, color, name, watts, pct, dim, hatched) {
+    function label(x, y, name, watts, pct, dim, twoLines) {
       var g = el('g', {});
-      g.appendChild(el('rect', {
-        x: x, y: y, width: w, height: h, rx: 4,
-        fill: hatched ? 'url(#hatch)' : color, 'fill-opacity': hatched ? 1 : .17, class: 'box',
-      }));
-      // Liseré : il porte la couleur pleine, donc l'identité, sans être sous le texte.
-      g.appendChild(el('rect', { x: x, y: y, width: 3.5, height: h, rx: 1.75, fill: color, class: 'edge' }));
-
-      var pad = 9;
-      if (h >= 23) {
-        var t1 = el('text', { x: x + pad, y: y + h / 2 - 3, class: 'nname' + (dim ? ' dim' : '') });
-        t1.textContent = cut(name, Math.floor((w - pad * 2) / 6));
-        g.appendChild(t1);
-        var t2 = el('text', { x: x + pad, y: y + h / 2 + 10, class: 'nval' });
-        t2.textContent = fmt(watts) + ' W' + (pct !== null ? '  ·  ' + pct + '%' : '');
-        g.appendChild(t2);
-      } else if (h >= 10) {
-        var t = el('text', { x: x + pad, y: y + h / 2 + 3.5, class: 'nname' + (dim ? ' dim' : '') });
-        t.textContent = cut(name, Math.floor((w - pad * 2) / 6.4)) + '   ' + fmt(watts) + ' W';
-        g.appendChild(t);
+      var t = el('text', { x: x, y: y + (twoLines ? -2 : 3.5), class: 'lbl' + (dim ? ' dim' : '') });
+      var v = el('tspan', { class: 'v' });
+      v.textContent = fmt(watts) + ' W';
+      t.appendChild(v);
+      var n = el('tspan', {});
+      n.textContent = '  ' + name;
+      t.appendChild(n);
+      g.appendChild(t);
+      if (twoLines && pct !== null) {
+        var p = el('text', { x: x, y: y + 11, class: 'sub2' });
+        p.textContent = pct + ' %';
+        g.appendChild(p);
       }
       return g;
     }
@@ -198,7 +196,6 @@
       var srcColor = css.getPropertyValue('--text-secondary').trim();
 
       var slot = 0, ySrc = 3, yZone = 3, gid = 0;
-      var srcNode = m.nodes.filter(function (n) { return n.depth === 0; })[0];
 
       zones.forEach(function (z) {
         var isUnknown = z.id.indexOf('__unmeasured__') >= 0;
@@ -214,14 +211,23 @@
 
         var gA = 'g' + (gid++);
         defs.appendChild(gradient(gA, srcColor, color));
-        svg.appendChild(ribbon(X_SRC + W_SRC, ySrc, ySrc + h, X_ZONE, yZone, yZone + h, 'url(#' + gA + ')', title));
+        svg.appendChild(ribbon(X_SRC + NODE, ySrc, ySrc + h, X_ZONE, yZone, yZone + h, 'url(#' + gA + ')', title));
 
-        // Une branche sans détail s'étend jusqu'au bord : le vide suggérerait un dessin manquant,
-        // la hachure dit qu'il manque une donnée.
-        var boxW = leaf ? (X_END - X_ZONE) : W_ZONE;
-        var box = nodeBox(X_ZONE, yZone, boxW, h, color, z.label, z.watts, pct, isUnknown || isTiny, leaf);
-        hover(box, title);
-        svg.appendChild(box);
+        var bar = el('rect', { x: X_ZONE, y: yZone, width: NODE, height: h, rx: 2, fill: color, class: 'bar' });
+        hover(bar, title);
+        svg.appendChild(bar);
+
+        if (leaf) {
+          // Sans détail en dessous, la branche s'étend jusqu'au bord, hachurée : le vide ferait
+          // croire à un dessin manquant, la hachure dit qu'il manque une donnée.
+          var tail = el('rect', {
+            x: X_ZONE + NODE, y: yZone, width: X_END - (X_ZONE + NODE), height: h,
+            rx: 2, fill: 'url(#hatch)',
+          });
+          hover(tail, title);
+          svg.appendChild(tail);
+        }
+        if (h >= 10) svg.appendChild(label(X_ZONE + NODE + 8, yZone + h / 2, z.label, z.watts, pct, isUnknown || isTiny, h >= 24));
 
         var kids = m.links.filter(function (l) { return l.from === z.id; });
         if (kids.length) {
@@ -236,12 +242,14 @@
 
             var gB = 'g' + (gid++);
             defs.appendChild(gradient(gB, color, color));
-            svg.appendChild(ribbon(X_ZONE + W_ZONE, yz, yz + dh, X_DEV, yd, yd + dh, 'url(#' + gB + ')', dtitle));
+            svg.appendChild(ribbon(X_ZONE + NODE, yz, yz + dh, X_DEV, yd, yd + dh, 'url(#' + gB + ')', dtitle));
 
-            var dbox = nodeBox(X_DEV, yd, X_END - X_DEV, dh, color,
-              node ? node.label : '?', l.watts, dpct, false, false);
-            hover(dbox, dtitle);
-            svg.appendChild(dbox);
+            var db = el('rect', { x: X_DEV, y: yd, width: NODE, height: dh, rx: 2, fill: color, class: 'bar' });
+            hover(db, dtitle);
+            svg.appendChild(db);
+            if (dh >= 10 && node) {
+              svg.appendChild(label(X_DEV + NODE + 8, yd + dh / 2, cut(node.label, 24), l.watts, dpct, false, dh >= 24));
+            }
             yz += dh + GAP_DEV; yd += dh + GAP_DEV;
           });
         }
@@ -251,11 +259,10 @@
       });
 
       // Le compteur, dessiné en dernier pour couvrir les départs de rubans.
-      var srcH = Math.max(1, ySrc - 3 - GAP_ZONE);
-      var sbox = nodeBox(X_SRC, 3, W_SRC, srcH, srcColor,
-        srcNode ? srcNode.label : 'Compteur', m.total, null, false, false);
-      hover(sbox, (srcNode ? srcNode.label : 'Compteur') + ' · ' + fmt(m.total) + ' W');
-      svg.appendChild(sbox);
+      svg.appendChild(el('rect', {
+        x: X_SRC, y: 3, width: NODE, height: Math.max(1, ySrc - 3 - GAP_ZONE),
+        rx: 2, fill: srcColor, class: 'bar',
+      }));
     }
 
     /**
