@@ -314,9 +314,16 @@ export default class EstimatorDevice extends Homey.Device {
     }
   }
 
-  /** Fait avancer le compteur sans changement d'état, et persiste. */
+  /**
+   * Fait avancer le compteur sans changement d'état, et persiste.
+   *
+   * ⚠️ Ne PAS conditionner ce tick à la présence d'un profil. Un appareil en saisie manuelle n'en
+   * a aucun : le garder ici le privait de tout recalcul périodique et de toute accumulation
+   * d'énergie. Il gardait la valeur calculée à son démarrage — donc zéro watt, puisque les
+   * puissances n'étaient pas encore saisies — et plus rien ne le réveillait jusqu'au prochain
+   * changement d'état de sa source. Une télé réglée à 60 W restait à 0 W, sans erreur nulle part.
+   */
   private async tick(): Promise<void> {
-    if (!this.profile) return;
     await this.recompute(Date.now());
     // Le hub applique son propre plancher anti-quota : cet appel ne part sur le réseau qu'une
     // fois par minute au plus, quel que soit le nombre d'appareils virtuels.
