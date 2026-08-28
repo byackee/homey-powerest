@@ -59,6 +59,7 @@ export default class EstimatorDevice extends Homey.Device {
   private ticker: NodeJS.Timeout | null = null;
   private profileTimer: NodeJS.Timeout | null = null;
   private profileBackoff = PROFILE_RETRY_MIN_MS;
+  private controlsRegistered = false;
 
   private get app(): PowerEstimateApp {
     return this.homey.app as PowerEstimateApp;
@@ -80,9 +81,6 @@ export default class EstimatorDevice extends Homey.Device {
     }
 
     this.meter = restoreMeter(this.getStoreValue('meter'), Date.now());
-
-    await this.syncCapabilities();
-    this.registerControls();
 
     this.ticker = this.homey.setInterval(() => { void this.tick(); }, TICK_MS);
     await this.loadProfile();
@@ -129,11 +127,8 @@ export default class EstimatorDevice extends Homey.Device {
    * capabilities quand son app est mise à jour, et un compagnon figé deviendrait un pilote
    * incomplet — une tuile sans gradation pour une lampe gradable, sans que rien ne le signale.
    */
-  private async syncCapabilities(): Promise<void> {
-    const source = this.app.getHub().getDevice(this.sourceId);
-    if (!source) return;
-
-    const { add, remove } = capabilityDiff(this.getCapabilities(), plannedCapabilities(source.capabilities));
+  private async syncCapabilities(sourceCapabilities: string[]): Promise<void> {
+    const { add, remove } = capabilityDiff(this.getCapabilities(), plannedCapabilities(sourceCapabilities));
 
     for (const capability of add) {
       try { await this.addCapability(capability); }
@@ -156,11 +151,13 @@ export default class EstimatorDevice extends Homey.Device {
    * fait converger la tuile sur ce que la lampe a RÉELLEMENT fait — et non sur ce qu'on lui a
    * demandé, distinction qui compte quand une lampe est hors tension.
    */
-  private registerControls(): void {
-    const source = this.app.getHub().getDevice(this.sourceId);
-    if (!source) return;
+  private registerControls(sourceCapabilities: string[]): void {
+    // `attach()` peut être rejoué après une reprise de profil : réenregistrer un écouteur sur la
+    // même capability le remplacerait silencieusement, mais autant ne pas s'y fier.
+    if (this.controlsRegistered) return;
+    this.controlsRegistered = true;
 
-    for (const capability of writableCapabilities(source.capabilities)) {
+    for (const capability of writableCapabilities(sourceCapabilities)) {
       if (!this.hasCapability(capability)) continue;
       this.registerCapabilityListener(capability, async (value: unknown) => {
         await this.app.getHub().setCapability(this.sourceId, capability, value as never);
@@ -220,6 +217,12 @@ export default class EstimatorDevice extends Homey.Device {
       await this.setUnavailable(this.homey.__('device.source_gone'));
       return;
     }
+
+    // Ici, et pas dans `onInit` : l'ordre d'initialisation des drivers n'est pas garanti par le
+    // SDK, et le hub peut ne pas être connecté quand l'appareil démarre. Aligner les capabilities
+    // sur une source inconnue les laisserait figées jusqu'au redémarrage suivant.
+    await this.syncCapabilities(source.capabilities);
+    this.registerControls(source.capabilities);
 
     const watched = WATCHED.filter((cap) => source.capabilities.includes(cap));
     const current = hub.readCapabilities(this.sourceId, watched);
