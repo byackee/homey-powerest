@@ -8,6 +8,7 @@
     "no_source": "No source device stored",
     "no_profile": "No profile stored for this device",
     "profile_error": "Profile could not be loaded",
-    "source_gone": "The source device is no longer available"
+    "source_gone": "The source device is no longer available",
+    "exclude_manually": "Double counting: open the source device in Homey and turn on Settings → Energy → Exclude from Energy. Homey does not let an app do this for you."
   }
 }

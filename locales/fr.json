@@ -8,6 +8,7 @@
     "no_source": "Aucun appareil source enregistré",
     "no_profile": "Aucun profil enregistré pour cet appareil",
     "profile_error": "Le profil n'a pas pu être chargé",
-    "source_gone": "L'appareil source n'est plus disponible"
+    "source_gone": "L'appareil source n'est plus disponible",
+    "exclude_manually": "Double comptage : ouvrez l'appareil source et activez Réglages → Énergie → Exclure de l'Énergie. Homey n'autorise pas une app à le faire à votre place."
   }
 }

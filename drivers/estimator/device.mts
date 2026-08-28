@@ -84,15 +84,16 @@ export default class EstimatorDevice extends Homey.Device {
 
   public override async onDeleted(): Promise<void> {
     this.teardown();
-    // On rend la source à Homey telle qu'on l'a trouvée : sans cela, l'utilisateur qui désinstalle
-    // l'app garderait des appareils définitivement absents de son onglet Énergie, sans savoir
-    // pourquoi.
-    if (this.getSetting('exclude_source') === true) {
-      try {
-        await this.app.getHub().setDeviceSettings(this.sourceId, { energy_exclude: false });
-      } catch (err) {
-        this.error('restauration de energy_exclude', err);
-      }
+    // La tentative de remise en état est vouée au même refus de scope que la pose (voir
+    // `applyExclusion`). Elle est conservée parce qu'elle ne coûte rien et deviendrait correcte
+    // si Athom ouvrait le scope, mais l'utilisateur doit être averti que la ré-inclusion de sa
+    // source lui revient — d'où la note, qui est lisible, plutôt qu'un `this.error` qui ne l'est
+    // pas sur une app installée.
+    try {
+      await this.app.getHub().setDeviceSettings(this.sourceId, { energy_exclude: false });
+      this.app.note('excl', `energy_exclude remis à false sur ${this.sourceId}`);
+    } catch {
+      this.app.note('excl?', `source ${this.sourceId} à ré-inclure à la main dans l'onglet Énergie`);
     }
   }
 
@@ -136,6 +137,7 @@ export default class EstimatorDevice extends Homey.Device {
       await this.recompute(Date.now());
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      this.app.note('prof!', `${this.getName()} : ${message}`);
       this.error('chargement du profil', message);
       await this.setUnavailable(this.homey.__('device.profile_error'));
       // Un profil absent ne se répare pas tout seul, mais une coupure réseau si : on retente dans
@@ -177,19 +179,51 @@ export default class EstimatorDevice extends Homey.Device {
   }
 
   /**
-   * Pose ou retire `energy_exclude` sur la SOURCE.
+   * Vérifie que la source est bien exclue de l'onglet Énergie, et le signale sinon.
    *
-   * L'écriture porte sur l'appareil d'une autre app : elle peut échouer (permission, appareil
-   * disparu) et l'échec ne doit pas rendre l'estimation indisponible — un double comptage est
-   * gênant, pas bloquant. Il est seulement journalisé.
+   * 🔴 **Une app ne PEUT PAS poser `energy_exclude` elle-même.** L'opération est
+   * `setDeviceSettings`, de scope `homey.device` ; une app, même avec la permission
+   * `homey:manager:api`, ne reçoit que `homey.device.readonly` et `homey.device.control`
+   * (constaté sur la Homey : `Error: Missing Scopes`, et confirmé dans les scopes de
+   * `HomeyAPIV3Local.json`). La même limite condamne l'autre approche envisagée, qui consistait à
+   * corriger `energy_value_on` de la source à la volée.
+   *
+   * L'app tente quand même l'écriture — si Athom ouvrait un jour le scope, tout marcherait sans
+   * changement — puis LIT l'état réel de la source, qui est en lecture seule mais bien visible.
+   * L'avertissement disparaît donc tout seul dès que l'utilisateur a coché la case, sans qu'il
+   * ait à revenir ici.
    */
   private async applyExclusion(): Promise<void> {
-    const exclude = this.getSetting('exclude_source') === true;
+    const wanted = this.getSetting('exclude_source') !== false;
+
     try {
-      await this.app.getHub().setDeviceSettings(this.sourceId, { energy_exclude: exclude });
-      this.log(`energy_exclude=${exclude} posé sur ${this.sourceId}`);
+      await this.app.getHub().setDeviceSettings(this.sourceId, { energy_exclude: wanted });
+      this.app.note('excl', `energy_exclude=${wanted} posé sur ${this.sourceId}`);
     } catch (err) {
-      this.error('energy_exclude', err);
+      const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      this.app.note('excl?', `écriture refusée sur ${this.sourceId} — ${detail}`);
+    }
+
+    await this.checkExclusion();
+  }
+
+  /**
+   * Confronte l'intention au réel et met à jour l'avertissement de l'appareil.
+   *
+   * Sans exclusion de la source, Homey compte DEUX fois le même appareil : sa propre valeur
+   * forfaitaire, plus l'estimation de cette app. Le total est alors PLUS faux qu'avant
+   * l'installation — c'est le seul état où l'app nuit, donc le seul qui mérite un avertissement
+   * permanent sur la tuile.
+   */
+  private async checkExclusion(): Promise<void> {
+    const wanted = this.getSetting('exclude_source') !== false;
+    const source = this.app.getHub().getDevice(this.sourceId);
+    const actual = (source?.settings ?? {})['energy_exclude'] === true;
+
+    if (wanted && !actual) {
+      await this.setWarning(this.homey.__('device.exclude_manually')).catch(() => undefined);
+    } else {
+      await this.unsetWarning().catch(() => undefined);
     }
   }
 
@@ -197,6 +231,10 @@ export default class EstimatorDevice extends Homey.Device {
   private async tick(): Promise<void> {
     if (!this.profile) return;
     await this.recompute(Date.now());
+    // Le hub applique son propre plancher anti-quota : cet appel ne part sur le réseau qu'une
+    // fois par minute au plus, quel que soit le nombre d'appareils virtuels.
+    await this.app.getHub().refresh().catch(() => undefined);
+    await this.checkExclusion();
     await this.setStoreValue('meter', this.meter).catch((err: unknown) => this.error('persistance', err));
   }
 
@@ -219,6 +257,7 @@ export default class EstimatorDevice extends Homey.Device {
       });
       watts = computePower(profile.model, profile.tables, state).watts;
     } catch (err) {
+      this.app.note('calc!', `${this.getName()} : ${err instanceof Error ? err.message : String(err)}`);
       this.error('calcul', err);
       return;
     }

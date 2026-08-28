@@ -32,15 +32,23 @@ donne 84 W**.
    jointure est directe, pas heuristique — 23 des 26 appareils estimables d'un parc réel.
 3. Vous créez un **appareil virtuel compagnon** portant `measure_power` et `meter_power`.
 4. L'app s'abonne aux changements de la source (allumage, gradation, couleur) et recalcule.
-5. Elle pose `energy_exclude: true` sur la source pour que l'onglet Énergie ne compte pas deux
-   fois le même appareil. Décocher le réglage la remet comme avant ; supprimer l'appareil
-   virtuel aussi.
+5. Elle vérifie que la source est bien exclue de l'onglet Énergie, et vous avertit sinon.
 
 Stratégies gérées : `lut` (531 profils), `fixed` (134), `linear` (69) — soit 734 des 744.
 `composite` et `multi_switch` (10 profils) ne le sont pas.
 
 ## Limites connues, et pourquoi
 
+- 🔴 **L'exclusion de la source est manuelle.** Homey applique sa propre estimation forfaitaire à
+  l'appareil source ; sans l'exclure, l'onglet Énergie compte deux fois le même appareil et le
+  total devient *plus* faux qu'avant l'installation. **Une app ne peut pas le faire elle-même** :
+  l'opération `setDeviceSettings` demande le scope `homey.device`, et une app — même avec la
+  permission `homey:manager:api` — ne reçoit que `homey.device.readonly` et
+  `homey.device.control` (`Error: Missing Scopes`, vérifié sur une Homey Pro). La même limite
+  condamne l'approche alternative qui aurait consisté à corriger `energy_value_on` de la source à
+  la volée. L'app lit donc l'état réel de la source et affiche un avertissement sur l'appareil
+  virtuel tant que **Réglages → Énergie → Exclure de l'Énergie** n'est pas coché côté source.
+  L'avertissement disparaît tout seul dès que c'est fait.
 - **Température de couleur.** Homey expose `light_temperature` dans 0..1 et ne dit jamais quelle
   est la plage physique de la lampe ; les tables sont en mired absolus. L'app suppose 153–500,
   la plage des Philips Hue, et le rend réglable par appareil. C'est la principale source

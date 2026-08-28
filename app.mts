@@ -159,6 +159,18 @@ export default class PowerEstimateApp extends Homey.App {
     return [...this.trace];
   }
 
+  /**
+   * Journalise depuis un driver ou un appareil.
+   *
+   * `Device.log`/`Device.error` n'aboutissent nulle part de lisible sur une app INSTALLÉE :
+   * Developer Tools ne liste que les soumissions au store et le CLI n'a pas de commande de logs.
+   * Une erreur d'appareil sans ce relais est donc définitivement invisible — c'est précisément ce
+   * qui a masqué l'échec de `energy_exclude` au premier appairage.
+   */
+  public note(tag: string, ...args: unknown[]): void {
+    this.record(tag, args);
+  }
+
   private record(tag: string, args: unknown[]): void {
     const text = args
       .map((a) => (a instanceof Error ? a.message : typeof a === 'string' ? a : safeJson(a)))

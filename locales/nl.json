@@ -8,6 +8,7 @@
     "no_source": "Geen bronapparaat opgeslagen",
     "no_profile": "Geen profiel opgeslagen voor dit apparaat",
     "profile_error": "Profiel kon niet worden geladen",
-    "source_gone": "Het bronapparaat is niet meer beschikbaar"
+    "source_gone": "Het bronapparaat is niet meer beschikbaar",
+    "exclude_manually": "Dubbeltelling: open het bronapparaat en zet Instellingen → Energie → Uitsluiten van Energie aan. Homey staat een app dit niet toe."
   }
 }
