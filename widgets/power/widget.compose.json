@@ -1,0 +1,31 @@
+{
+  "name": {
+    "en": "Estimated power",
+    "fr": "Puissance estimée",
+    "nl": "Geschat vermogen"
+  },
+  "settings": [
+    {
+      "id": "source",
+      "type": "device",
+      "title": {
+        "en": "Device",
+        "fr": "Appareil",
+        "nl": "Apparaat"
+      },
+      "hint": {
+        "en": "Pick the real device. The widget finds its estimate on its own.",
+        "fr": "Choisissez l'appareil réel. Le widget retrouve son estimation tout seul.",
+        "nl": "Kies het echte apparaat. De widget vindt zelf de bijbehorende schatting."
+      }
+    }
+  ],
+  "height": 110,
+  "transparent": false,
+  "api": {
+    "getEstimate": {
+      "method": "GET",
+      "path": "/"
+    }
+  }
+}

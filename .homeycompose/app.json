@@ -1,9 +1,11 @@
 {
   "id": "com.dataweavelabs.powerestimate",
   "version": "1.0.0",
-  "compatibility": ">=12.0.1",
+  "compatibility": ">=12.3.0",
   "sdk": 3,
-  "platforms": ["local"],
+  "platforms": [
+    "local"
+  ],
   "brandColor": "#F59F00",
   "name": {
     "en": "Power Estimator",
@@ -15,12 +17,62 @@
     "fr": "Estimez la puissance et l'énergie des appareils sans compteur, à partir de profils mesurés",
     "nl": "Schat vermogen en energie van apparaten zonder meter, op basis van gemeten profielen"
   },
-  "category": ["tools", "energy"],
-  "permissions": ["homey:manager:api"],
+  "category": [
+    "tools",
+    "energy"
+  ],
+  "permissions": [
+    "homey:manager:api"
+  ],
   "tags": {
-    "en": ["power", "energy", "watt", "kwh", "estimate", "hue", "philips", "signify", "ikea", "tuya", "innr", "powercalc", "virtual meter", "consumption"],
-    "fr": ["puissance", "énergie", "watt", "kwh", "estimation", "hue", "philips", "signify", "ikea", "tuya", "innr", "powercalc", "compteur virtuel", "consommation"],
-    "nl": ["vermogen", "energie", "watt", "kwh", "schatting", "hue", "philips", "signify", "ikea", "tuya", "innr", "powercalc", "virtuele meter", "verbruik"]
+    "en": [
+      "power",
+      "energy",
+      "watt",
+      "kwh",
+      "estimate",
+      "hue",
+      "philips",
+      "signify",
+      "ikea",
+      "tuya",
+      "innr",
+      "powercalc",
+      "virtual meter",
+      "consumption"
+    ],
+    "fr": [
+      "puissance",
+      "énergie",
+      "watt",
+      "kwh",
+      "estimation",
+      "hue",
+      "philips",
+      "signify",
+      "ikea",
+      "tuya",
+      "innr",
+      "powercalc",
+      "compteur virtuel",
+      "consommation"
+    ],
+    "nl": [
+      "vermogen",
+      "energie",
+      "watt",
+      "kwh",
+      "schatting",
+      "hue",
+      "philips",
+      "signify",
+      "ikea",
+      "tuya",
+      "innr",
+      "powercalc",
+      "virtuele meter",
+      "verbruik"
+    ]
   },
   "images": {
     "small": "/assets/images/small.png",
@@ -32,9 +84,25 @@
     "email": "admin@dataweavelabs.com"
   },
   "api": {
-    "getStatus": { "method": "GET", "path": "/status", "role": "owner" },
-    "getCandidates": { "method": "GET", "path": "/candidates", "role": "owner" },
-    "refreshLibrary": { "method": "POST", "path": "/library/refresh", "role": "owner" },
-    "getTrace": { "method": "GET", "path": "/trace", "role": "owner" }
+    "getStatus": {
+      "method": "GET",
+      "path": "/status",
+      "role": "owner"
+    },
+    "getCandidates": {
+      "method": "GET",
+      "path": "/candidates",
+      "role": "owner"
+    },
+    "refreshLibrary": {
+      "method": "POST",
+      "path": "/library/refresh",
+      "role": "owner"
+    },
+    "getTrace": {
+      "method": "GET",
+      "path": "/trace",
+      "role": "owner"
+    }
   }
 }
