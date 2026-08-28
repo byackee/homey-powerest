@@ -23,5 +23,10 @@
     "en": "The settings page and the pairing view are translated too. They were the last two surfaces still written in French only.",
     "fr": "La page de réglages et la vue d'appairage sont traduites à leur tour. C'étaient les deux dernières surfaces encore écrites en français seulement.",
     "nl": "De instellingenpagina en het koppelscherm zijn nu ook vertaald."
+  },
+  "1.0.5": {
+    "en": "Narrows the description after feedback on the forum. Homey already lets you set a fixed power figure on many devices; what it cannot do is follow a dimmer. That is what this app is for.",
+    "fr": "Resserre la description après un retour sur le forum. Homey permet déjà de fixer une valeur sur beaucoup d'appareils ; ce qu'il ne sait pas faire, c'est suivre une gradation. C'est à cela que sert cette app.",
+    "nl": "Scherpt de beschrijving aan na feedback op het forum. Homey kan al een vaste waarde instellen; wat het niet kan, is een dimmer volgen."
   }
 }

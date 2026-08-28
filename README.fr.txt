@@ -1,7 +1,8 @@
-L'essentiel de ce que consomme un logement est invisible pour Homey. Une lampe, un ventilateur,
-une imprimante n'ont pas de compteur : Homey se rabat alors sur une valeur unique et plate, les
-mêmes watts qu'une ampoule soit au dixième ou à fond. Power Estimator remplace cette supposition
-par une mesure. Il rapproche vos appareils des profils de la bibliothèque PowerCalc — des milliers
+Homey permet déjà de fixer une puissance sur un appareil, et pour une bouilloire ou une box c'est
+exactement ce qu'il faut — si l'appareil propose ce réglage, utilisez-le, c'est plus simple que
+cette app. Ce qu'une valeur unique ne peut pas faire, c'est suivre une gradation. Une ampoule au
+dixième de sa luminosité tire une fraction de ce qu'elle tire à fond, et sa couleur change encore
+la réponse. Power Estimator remplace ce chiffre unique par une mesure qui suit l'appareil. Il rapproche vos appareils des profils de la bibliothèque PowerCalc — des milliers
 de relevés pris au wattmètre sur du vrai matériel — et suit l'état de chacun pour établir ce qu'il
 tire à l'instant. Une ampoule gradable que Homey comptait 6,5 W en forfait se révèle tirer 0,9 W
 au dixième et 4,5 W à pleine luminosité.

@@ -1,6 +1,8 @@
-Most of what a home consumes is invisible to Homey. A lamp, a fan, a printer has no meter, so
-Homey falls back on a single flat number: the same watts whether a bulb is dimmed to a tenth or
-running full. Power Estimator replaces that guess with a measurement. It matches your devices
+Homey already lets you give a device a fixed power figure, and for a kettle or a router that is
+exactly right — if a device offers those settings, use them, it is simpler than this app. What a
+single number cannot do is follow a dimmer. A bulb at a tenth of its brightness draws a fraction
+of what it draws at full, and its colour changes the answer again. Power Estimator replaces that
+one figure with a measurement that follows the device. It matches your devices
 against the profiles of the PowerCalc library, thousands of readings taken with a wattmeter on
 real hardware, and follows the state of each device to work out what it is drawing right now. A
 dimmable bulb that Homey counted as a flat 6.5 W turns out to draw 0.9 W at a tenth and 4.5 W at

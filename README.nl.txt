@@ -1,6 +1,8 @@
-Het meeste van wat een woning verbruikt is onzichtbaar voor Homey. Een lamp, een ventilator, een
-printer heeft geen meter, dus valt Homey terug op één vast getal: hetzelfde vermogen of een lamp
-nu op een tiende staat of op vol. Power Estimator vervangt die schatting door een meting. Het legt
+Homey laat u al een vast vermogen instellen, en voor een waterkoker of een router klopt dat precies
+— biedt een apparaat die instelling, gebruik die dan, dat is eenvoudiger dan deze app. Wat één
+getal niet kan, is een dimmer volgen. Een lamp op een tiende trekt een fractie van wat zij op vol
+trekt, en de kleur verandert het antwoord opnieuw. Power Estimator vervangt dat ene getal door een
+meting die het apparaat volgt. Het legt
 uw apparaten naast de profielen van de PowerCalc-bibliotheek — duizenden metingen met een
 wattmeter op echte apparaten — en volgt de toestand van elk apparaat om te bepalen wat het nu
 trekt. Een dimbare lamp die Homey op een vaste 6,5 W zette, blijkt 0,9 W te trekken op een tiende
