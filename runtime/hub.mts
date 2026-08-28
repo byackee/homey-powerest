@@ -58,6 +58,8 @@ interface ApiDevice {
   capabilities: string[];
   capabilitiesObj: Record<string, { value?: unknown } | undefined> | null;
   settings?: Record<string, unknown> | null;
+  /** Objet Energy calculé par Homey. `cumulative` distingue un compteur général d'une charge. */
+  energyObj?: { cumulative?: boolean | null } | null;
   driverId?: string;
   driverUri?: string;
   available: boolean;
@@ -94,6 +96,14 @@ export interface DeviceSummary extends DeviceIdentity {
   available: boolean;
   /** Vrai si l'appareil mesure déjà sa consommation : il n'a pas besoin d'estimation. */
   hasPowerMeter: boolean;
+  /** Valeur courante de `measure_power`, ou `null` si l'appareil n'en porte pas. */
+  watts: number | null;
+  /**
+   * Compteur général (Linky, pince ampèremétrique). C'est une SOURCE d'énergie pour le logement,
+   * pas une charge : le confondre avec un appareil doublerait le total du diagramme de flux.
+   */
+  cumulative: boolean;
+  hidden: boolean;
 }
 
 /** Un abonnement vivant à une capability d'une source. */
@@ -290,6 +300,7 @@ export class HomeyApiHub extends EventEmitter {
 
   private summarise(device: ApiDevice): DeviceSummary {
     const capabilities = device.capabilities ?? [];
+    const power = (device.capabilitiesObj ?? {})['measure_power']?.value;
     return {
       id: device.id,
       name: device.name,
@@ -300,6 +311,9 @@ export class HomeyApiHub extends EventEmitter {
       zoneName: this.zones[device.zone]?.name ?? null,
       available: device.available !== false,
       hasPowerMeter: capabilities.includes('measure_power') || capabilities.includes('meter_power'),
+      watts: typeof power === 'number' && Number.isFinite(power) ? power : null,
+      cumulative: (device.energyObj ?? {})?.cumulative === true,
+      hidden: (device as unknown as { hidden?: boolean }).hidden === true,
     };
   }
 }

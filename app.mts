@@ -20,6 +20,7 @@ import { HomeyApiHub, type DeviceSummary } from './runtime/hub.mjs';
 import { LibraryClient } from './runtime/library.mjs';
 import { isSelfUsageOnly, matchDevice, type LibraryIndex, type Match } from './lib/matching.mjs';
 import { SUPPORTED_STRATEGIES } from './lib/types.mjs';
+import { buildSankey, type FlowDevice, type SankeyModel } from './lib/sankey.mjs';
 
 sourceMapSupport.install();
 
@@ -152,6 +153,25 @@ export default class PowerEstimateApp extends Homey.App {
       if (!!a.match !== !!b.match) return a.match ? -1 : 1;
       return a.device.name.localeCompare(b.device.name);
     });
+  }
+
+  /**
+   * Le flux d'énergie du logement : compteur général → pièces → appareils.
+   *
+   * Les appareils MASQUÉS sont conservés. Sur cette installation ils portent justement les
+   * estimations : les écarter viderait le diagramme de tout ce que l'app apporte.
+   */
+  public energyFlow(): SankeyModel {
+    const devices: FlowDevice[] = this.getHub().listDevices()
+      .filter((device) => device.watts !== null)
+      .map((device) => ({
+        id: device.id,
+        name: device.name,
+        zoneName: device.zoneName,
+        watts: device.watts as number,
+        cumulative: device.cumulative,
+      }));
+    return buildSankey(devices);
   }
 
   /** Journal circulaire consultable depuis la page de réglages. */

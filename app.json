@@ -336,6 +336,23 @@
         }
       },
       "id": "power"
+    },
+    "sankey": {
+      "name": {
+        "en": "Energy flow",
+        "fr": "Flux d'énergie",
+        "nl": "Energiestroom"
+      },
+      "settings": [],
+      "height": 380,
+      "transparent": false,
+      "api": {
+        "getFlow": {
+          "method": "GET",
+          "path": "/"
+        }
+      },
+      "id": "sankey"
     }
   }
 }
