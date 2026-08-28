@@ -22,12 +22,12 @@
   button { font-size: 14px; padding: 8px 14px; border-radius: 6px; border: 1px solid #ccc; background: #fafafa; cursor: pointer; }
 </style>
 
-<h2 data-i18n="settings.status">État</h2>
-<div class="row"><span class="k">Connexion aux appareils</span><span class="v" id="st-connected">…</span></div>
-<div class="row"><span class="k">Bibliothèque de profils</span><span class="v" id="st-library">…</span></div>
-<div class="row"><span class="k">Appareils estimables</span><span class="v" id="st-candidates">…</span></div>
+<h2 id="t-status"></h2>
+<div class="row"><span class="k" id="t-connection"></span><span class="v" id="st-connected">…</span></div>
+<div class="row"><span class="k" id="t-library"></span><span class="v" id="st-library">…</span></div>
+<div class="row"><span class="k" id="t-estimable"></span><span class="v" id="st-candidates">…</span></div>
 
-<p><button id="st-refresh" type="button">Recharger la bibliothèque</button></p>
+<p><button id="st-refresh" type="button"></button></p>
 
 <h2>Usage des appareils</h2>
 <p class="note">
@@ -46,20 +46,46 @@
 
     function set(id, text) { document.getElementById(id).textContent = text; }
 
+    /**
+     * Traduction.
+     *
+     * `Homey.__` n'existe qu'après `onHomeyReady` : tout texte écrit dans le HTML resterait figé
+     * dans une seule langue. Cette page était entièrement en français. Le repli rend la clé plutôt
+     * qu'une chaîne vide, ce qui se voit et se corrige, au lieu de disparaître.
+     */
+    function t(key) {
+      try {
+        var v = Homey.__(key);
+        return (typeof v === 'string' && v !== '' && v !== key) ? v : key;
+      } catch (e) { return key; }
+    }
+
+    function fillLabels() {
+      set('t-status', t('settings.status'));
+      set('t-connection', t('settings.connection'));
+      set('t-library', t('settings.library'));
+      set('t-estimable', t('settings.estimable'));
+      set('t-usages', t('settings.usages_title'));
+      set('t-log', t('settings.log'));
+      document.getElementById('st-refresh').textContent = t('settings.reload');
+      document.getElementById('t-usages-note').innerHTML = t('settings.usages_note');
+      document.getElementById('t-powered-note').innerHTML = t('settings.powered_note');
+    }
+
     function load() {
       Homey.api('GET', '/status', null, function (err, status) {
-        if (err) { set('st-connected', 'erreur : ' + err); return; }
-        set('st-connected', status.connected ? 'connectée' : 'en attente');
+        if (err) { set('st-connected', t('settings.error') + ' : ' + err); return; }
+        set('st-connected', status.connected ? t('settings.connected') : t('settings.waiting'));
         set('st-library', status.libraryError
-          ? 'indisponible — ' + status.libraryError
-          : status.libraryLoaded ? status.libraryModels + ' modèles' : 'chargement…');
-        set('st-candidates', status.estimable + ' sur ' + status.candidates);
+          ? t('settings.unavailable') + ' — ' + status.libraryError
+          : status.libraryLoaded ? status.libraryModels + ' ' + t('settings.models') : t('settings.loading'));
+        set('st-candidates', status.estimable + ' ' + t('settings.of') + ' ' + status.candidates);
       });
 
 
       Homey.api('GET', '/usages', null, function (err, data) {
         var box = document.getElementById('st-usages');
-        if (err) { box.textContent = 'erreur : ' + err; return; }
+        if (err) { box.textContent = t('settings.error') + ' : ' + err; return; }
         box.innerHTML = '';
         data.devices.forEach(function (d) {
           var row = document.createElement('div');
@@ -67,7 +93,7 @@
 
           var name = document.createElement('span');
           name.className = 'u-name';
-          name.textContent = d.name + (d.zone ? ' — ' + d.zone : '') + (d.approximated ? '  (forfait Homey)' : '');
+          name.textContent = d.name + (d.zone ? ' — ' + d.zone : '') + (d.approximated ? '  ' + t('settings.flat_rate') : '');
           row.appendChild(name);
 
           var w = document.createElement('span');
@@ -80,7 +106,7 @@
           auto.value = '';
           // On montre ce que le rangement automatique a décidé : sans ça, « automatique » ne dit
           // pas où l'appareil atterrit, et l'utilisateur ne sait pas s'il doit corriger.
-          auto.textContent = 'Automatique (' + d.categoryLabel + ')';
+          auto.textContent = t('settings.auto') + ' (' + d.categoryLabel + ')';
           sel.appendChild(auto);
           data.categories.forEach(function (c) {
             var o = document.createElement('option');
@@ -95,7 +121,7 @@
 
           var par = document.createElement('select');
           var none = document.createElement('option');
-          none.value = ''; none.textContent = 'Alimenté par…';
+          none.value = ''; none.textContent = t('settings.powered_by');
           par.appendChild(none);
           data.devices.forEach(function (o) {
             // Un appareil ne peut pas s'alimenter lui-même, et une chaîne à deux niveaux suffit :
@@ -115,7 +141,7 @@
       });
 
       Homey.api('GET', '/trace', null, function (err, lines) {
-        set('st-trace', err ? String(err) : (lines.length ? lines.join('\n') : 'rien à signaler'));
+        set('st-trace', err ? String(err) : (lines.length ? lines.join('\n') : t('settings.nothing')));
       });
     }
 
@@ -123,6 +149,7 @@
       Homey.api('POST', '/library/refresh', null, function () { setTimeout(load, 1500); });
     });
 
+    fillLabels();
     load();
     setInterval(load, 10000);
     Homey.ready();

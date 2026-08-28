@@ -3,7 +3,24 @@
     "gone": "Dit apparaat is niet meer beschikbaar",
     "no_profile": "Er bestaat geen gemeten profiel voor dit apparaat",
     "unsupported": "Dit profiel gebruikt een berekeningsstrategie die deze versie niet ondersteunt",
-    "manual": "Handmatige invoer"
+    "manual": "Handmatige invoer",
+    "note": "Het aangemaakte apparaat <b>neemt de bediening over</b> van de bron (aan/uit, dimmen, kleur) en voegt het geschatte verbruik toe. U kunt daarna <b>het origineel verbergen</b>. Zolang beide in Energie zichtbaar zijn, sluit u de bron best uit.",
+    "refresh": "Vernieuwen",
+    "estimable": "schatbare apparaten van",
+    "without_meter": "zonder vermogensmeting",
+    "creating": "Aanmaken van",
+    "failed": "Mislukt",
+    "error": "Fout",
+    "loading": "Profielbibliotheek laden…",
+    "lib_unavailable": "Bibliotheek niet beschikbaar",
+    "no_profile_line": "Geen profiel — vermogen in te vullen bij de instellingen",
+    "via": "via",
+    "warn_manual": "Geen bruikbaar profiel: handmatig in te vullen bij de instellingen",
+    "warn_always_on": "Geen schakelaar: wordt geteld als altijd aan",
+    "warn_sub_profiles": "Dit profiel heeft varianten: de meting kan afwijken",
+    "warn_unconfirmed": "Fabrikant niet bevestigd — controleer dit",
+    "already_counted": "Homey kent er al __watts__ W aan toe: sluit het na aanmaken uit van Energie, anders tellen beide waarden op.",
+    "warn_self_usage": "Dit profiel meet alleen het apparaat zelf, niet de aangesloten belasting"
   },
   "device": {
     "no_source": "Geen bronapparaat opgeslagen",
@@ -38,5 +55,27 @@
     "draw_failed": "Tekenen mislukt",
     "no_library": "Tekenbibliotheek ontbreekt",
     "double_counted": "Bron niet uitgesloten van Energie: die wordt daar dubbel geteld."
+  },
+  "settings": {
+    "status": "Status",
+    "connection": "Verbinding met apparaten",
+    "library": "Profielbibliotheek",
+    "estimable": "Schatbare apparaten",
+    "reload": "Bibliotheek herladen",
+    "usages_title": "Gebruik van apparaten",
+    "log": "Logboek",
+    "usages_note": "Het stroomdiagram ordent elk apparaat op gebruik. De automatische indeling gebruikt de Homey-apparaatklasse, die niets weet van een UPS of een inbouwmodule: die belanden in “Stopcontacten &amp; overig”, dat daardoor de grootste post wordt zonder iets te zeggen. Corrigeer ze hier.",
+    "powered_note": "<b>Gevoed door</b> is voor apparaten die zelf nauwelijks verbruiken: een UPS, een gemeten stekkerdoos, een inbouwmodule. Wat zij tonen is de belasting van wat erachter hangt. Leg de relatie vast en hun verbruik wordt niet meer dubbel geteld.",
+    "connected": "verbonden",
+    "waiting": "wachten",
+    "unavailable": "niet beschikbaar",
+    "loading": "laden…",
+    "models": "modellen",
+    "of": "van",
+    "auto": "Automatisch",
+    "powered_by": "Gevoed door…",
+    "nothing": "niets te melden",
+    "error": "fout",
+    "flat_rate": "(vaste waarde van Homey)"
   }
 }

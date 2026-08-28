@@ -22,15 +22,10 @@
   button { font-size: 14px; padding: 8px 14px; border-radius: 6px; border: 1px solid #ccc; background: #fafafa; cursor: pointer; }
 </style>
 
-<div id="ld-note">
-  L’appareil créé <b>reprend les commandes</b> de la source (allumage, gradation, couleur) et y
-  ajoute la consommation estimée. Vous pouvez ensuite <b>masquer l’appareil d’origine</b> et ne
-  garder que celui-ci. Tant que les deux sont visibles dans l’Énergie, pensez à exclure la source
-  pour éviter qu’elle ne soit comptée deux fois.
-</div>
+<div id="ld-note"></div>
 <div id="ld-status">…</div>
 <ul id="ld-list"></ul>
-<div id="ld-actions"><button id="ld-refresh" type="button">Rafraîchir</button></div>
+<div id="ld-actions"><button id="ld-refresh" type="button"></button></div>
 
 <script type="text/javascript">
   (function () {
@@ -45,15 +40,30 @@
 
     function el(id) { return document.getElementById(id); }
 
+    /**
+     * Traduction.
+     *
+     * `Homey.__` est injecté dans la vue de pairing comme le reste de l'API. Cette vue était
+     * entièrement en français : un utilisateur néerlandais appairait ses appareils en lisant du
+     * français. Le repli rend la clé — visible, donc corrigeable — plutôt qu'une chaîne vide.
+     */
+    function t(key) {
+      try {
+        var v = Homey.__(key);
+        return (typeof v === 'string' && v !== '' && v !== key) ? v : key;
+      } catch (e) { return key; }
+    }
+
     function status(text) { el('ld-status').textContent = text; }
 
+    var WARNINGS = {
+      manual: 'pair.warn_manual', always_on: 'pair.warn_always_on',
+      self_usage: 'pair.warn_self_usage', sub_profiles: 'pair.warn_sub_profiles',
+      unconfirmed: 'pair.warn_unconfirmed',
+    };
+
     function warningText(code) {
-      if (code === 'manual') return 'Aucun profil utilisable : à renseigner à la main dans les réglages';
-      if (code === 'always_on') return 'Sans interrupteur : sera compté comme allumé en permanence';
-      if (code === 'self_usage') return 'Ce profil ne mesure que l’appareil lui-même, pas la charge qu’il pilote';
-      if (code === 'sub_profiles') return 'Ce profil a des variantes : la mesure peut différer';
-      if (code === 'unconfirmed') return 'Fabricant non confirmé — à vérifier';
-      return null;
+      return WARNINGS[code] ? t(WARNINGS[code]) : null;
     }
 
     function render(items) {
@@ -73,15 +83,14 @@
         var meta = document.createElement('div');
         meta.className = 'ld-meta';
         meta.textContent = item.profile
-          ? item.profile + ' · ' + item.strategy + ' · via ' + item.detail
-          : 'Aucun profil — puissance à saisir dans les réglages';
+          ? item.profile + ' · ' + item.strategy + ' · ' + t('pair.via') + ' ' + item.detail
+          : t('pair.no_profile_line');
         li.appendChild(meta);
 
         if (typeof item.homeyWatts === 'number' && item.homeyWatts > 0) {
           var h = document.createElement('div');
           h.className = 'ld-warn';
-          h.textContent = 'Homey lui attribue déjà ' + item.homeyWatts + ' W : pensez à l’exclure de '
-            + 'l’Énergie après création, sinon les deux valeurs s’additionneront.';
+          h.textContent = t('pair.already_counted').replace('__watts__', String(item.homeyWatts));
           li.appendChild(h);
         }
         var warn = warningText(item.warning);
@@ -99,24 +108,24 @@
         list.appendChild(li);
       });
 
-      status(usable + ' appareil(s) estimable(s) sur ' + items.length + ' sans mesure de puissance');
+      status(usable + ' ' + t('pair.estimable') + ' ' + items.length + ' ' + t('pair.without_meter'));
     }
 
     function pick(item) {
       if (busy) return;
       busy = true;
-      status('Création de « ' + item.name + ' »…');
+      status(t('pair.creating') + ' « ' + item.name + ' »…');
       Homey.emit('build', item.id, function (err, device) {
         if (err) {
           busy = false;
-          status('Échec : ' + err);
+          status(t('pair.failed') + ' : ' + err);
           trace('build failed: ' + err);
           return;
         }
         Homey.createDevice(device, function (createErr) {
           if (createErr) {
             busy = false;
-            status('Échec : ' + createErr);
+            status(t('pair.failed') + ' : ' + createErr);
             trace('createDevice failed: ' + createErr);
             return;
           }
@@ -127,11 +136,11 @@
 
     function load() {
       Homey.emit('list', null, function (err, result) {
-        if (err) { status('Erreur : ' + err); trace('list failed: ' + err); return; }
+        if (err) { status(t('pair.error') + ' : ' + err); trace('list failed: ' + err); return; }
         if (!result.ready) {
           status(result.error
-            ? 'Bibliothèque indisponible : ' + result.error
-            : 'Chargement de la bibliothèque de profils…');
+            ? t('pair.lib_unavailable') + ' : ' + result.error
+            : t('pair.loading'));
           setTimeout(load, POLL_MS);
           return;
         }
@@ -140,11 +149,14 @@
     }
 
     el('ld-refresh').addEventListener('click', function () {
-      status('Rafraîchissement…');
+      status(t('pair.loading'));
       Homey.emit('refresh', null, function () { load(); });
     });
 
-    trace('list_devices prêt');
+    el('ld-note').innerHTML = t('pair.note');
+    el('ld-refresh').textContent = t('pair.refresh');
+
+    trace('list_devices ready');
     load();
   })();
 </script>

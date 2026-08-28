@@ -3,7 +3,24 @@
     "gone": "Cet appareil n'est plus disponible",
     "no_profile": "Aucun profil mesuré n'existe pour cet appareil",
     "unsupported": "Ce profil utilise une stratégie de calcul non gérée par cette version",
-    "manual": "Saisie manuelle"
+    "manual": "Saisie manuelle",
+    "note": "L’appareil créé <b>reprend les commandes</b> de la source (allumage, gradation, couleur) et y ajoute la consommation estimée. Vous pouvez ensuite <b>masquer l’appareil d’origine</b> et ne garder que celui-ci. Tant que les deux sont visibles dans l’Énergie, pensez à exclure la source pour éviter qu’elle ne soit comptée deux fois.",
+    "refresh": "Rafraîchir",
+    "estimable": "appareil(s) estimable(s) sur",
+    "without_meter": "sans mesure de puissance",
+    "creating": "Création de",
+    "failed": "Échec",
+    "error": "Erreur",
+    "loading": "Chargement de la bibliothèque de profils…",
+    "lib_unavailable": "Bibliothèque indisponible",
+    "no_profile_line": "Aucun profil — puissance à saisir dans les réglages",
+    "via": "via",
+    "warn_manual": "Aucun profil utilisable : à renseigner à la main dans les réglages",
+    "warn_always_on": "Sans interrupteur : sera compté comme allumé en permanence",
+    "warn_sub_profiles": "Ce profil a des variantes : la mesure peut différer",
+    "warn_unconfirmed": "Fabricant non confirmé — à vérifier",
+    "already_counted": "Homey lui attribue déjà __watts__ W : pensez à l’exclure de l’Énergie après création, sinon les deux valeurs s’additionneront.",
+    "warn_self_usage": "Ce profil ne mesure que l’appareil lui-même, pas la charge qu’il pilote"
   },
   "device": {
     "no_source": "Aucun appareil source enregistré",
@@ -38,5 +55,27 @@
     "draw_failed": "Tracé impossible",
     "no_library": "Bibliothèque de tracé absente",
     "double_counted": "Source non exclue de l'Énergie : elle y est comptée deux fois."
+  },
+  "settings": {
+    "status": "État",
+    "connection": "Connexion aux appareils",
+    "library": "Bibliothèque de profils",
+    "estimable": "Appareils estimables",
+    "reload": "Recharger la bibliothèque",
+    "usages_title": "Usage des appareils",
+    "log": "Journal",
+    "usages_note": "Le diagramme de flux range chaque appareil par usage. Le rangement automatique se fonde sur la classe Homey, qui ne sait rien d’un onduleur ou d’un module encastré : ceux-là finissent dans «&nbsp;Prises&nbsp;&amp;&nbsp;divers&nbsp;», qui devient le plus gros poste sans rien apprendre. Corrigez-les ici.",
+    "powered_note": "<b>Alimenté par</b> sert aux appareils qui n’en sont pas vraiment&nbsp;: un onduleur, une multiprise mesurée, un module de tableau. Ce qu’ils affichent est la charge de ce qui est branché derrière. Déclarez le lien et leur consommation cesse d’être comptée deux fois.",
+    "connected": "connectée",
+    "waiting": "en attente",
+    "unavailable": "indisponible",
+    "loading": "chargement…",
+    "models": "modèles",
+    "of": "sur",
+    "auto": "Automatique",
+    "powered_by": "Alimenté par…",
+    "nothing": "rien à signaler",
+    "error": "erreur",
+    "flat_rate": "(forfait Homey)"
   }
 }

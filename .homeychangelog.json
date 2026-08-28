@@ -18,5 +18,10 @@
     "en": "The widgets and the usage categories are now translated. Both were written in French only, so English and Dutch users saw French labels throughout.",
     "fr": "Les widgets et les catégories d'usage sont désormais traduits. Les deux étaient écrits en français seulement, si bien que les utilisateurs anglophones et néerlandophones lisaient des libellés français.",
     "nl": "De widgets en gebruikscategorieën zijn nu vertaald. Beide waren alleen in het Frans geschreven."
+  },
+  "1.0.4": {
+    "en": "The settings page and the pairing view are translated too. They were the last two surfaces still written in French only.",
+    "fr": "La page de réglages et la vue d'appairage sont traduites à leur tour. C'étaient les deux dernières surfaces encore écrites en français seulement.",
+    "nl": "De instellingenpagina en het koppelscherm zijn nu ook vertaald."
   }
 }

@@ -3,7 +3,24 @@
     "gone": "This device is no longer available",
     "no_profile": "No measured profile exists for this device",
     "unsupported": "This profile uses a calculation strategy this version does not support",
-    "manual": "Manual entry"
+    "manual": "Manual entry",
+    "note": "The device you create <b>takes over the controls</b> of the source (on/off, dimming, colour) and adds the estimated consumption. You can then <b>hide the original</b> and keep only this one. While both are visible in Energy, remember to exclude the source so it is not counted twice.",
+    "refresh": "Refresh",
+    "estimable": "estimable device(s) out of",
+    "without_meter": "without power measurement",
+    "creating": "Creating",
+    "failed": "Failed",
+    "error": "Error",
+    "loading": "Loading the profile library…",
+    "lib_unavailable": "Library unavailable",
+    "no_profile_line": "No profile — enter the power in the settings",
+    "via": "via",
+    "warn_manual": "No usable profile: to be entered by hand in the settings",
+    "warn_always_on": "No switch: will be counted as always on",
+    "warn_sub_profiles": "This profile has variants: the measurement may differ",
+    "warn_unconfirmed": "Manufacturer not confirmed — worth checking",
+    "already_counted": "Homey already assigns it __watts__ W: remember to exclude it from Energy after creating, otherwise both values add up.",
+    "warn_self_usage": "This profile only measures the device itself, not the load it drives"
   },
   "device": {
     "no_source": "No source device stored",
@@ -38,5 +55,27 @@
     "draw_failed": "Cannot draw",
     "no_library": "Drawing library missing",
     "double_counted": "Source not excluded from Energy: it is counted twice there."
+  },
+  "settings": {
+    "status": "Status",
+    "connection": "Device connection",
+    "library": "Profile library",
+    "estimable": "Estimable devices",
+    "reload": "Reload the library",
+    "usages_title": "Device usage",
+    "log": "Log",
+    "usages_note": "The flow diagram sorts every device by usage. The automatic sorting relies on the Homey device class, which knows nothing about a UPS or an in-wall module: those end up in “Sockets &amp; other”, which becomes the largest slice while telling you nothing. Correct them here.",
+    "powered_note": "<b>Powered by</b> is for devices that are not really consumers themselves: a UPS, a metered power strip, an in-wall module. What they report is the load of whatever sits behind them. Declare the link and their consumption stops being counted twice.",
+    "connected": "connected",
+    "waiting": "waiting",
+    "unavailable": "unavailable",
+    "loading": "loading…",
+    "models": "models",
+    "of": "of",
+    "auto": "Automatic",
+    "powered_by": "Powered by…",
+    "nothing": "nothing to report",
+    "error": "error",
+    "flat_rate": "(Homey flat rate)"
   }
 }
