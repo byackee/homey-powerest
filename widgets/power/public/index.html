@@ -59,17 +59,26 @@
         : '';
     }
 
+    /**
+     * ⚠️ `Homey.api` rend une PROMESSE dans un widget, un rappel dans une page de réglages. Le
+     * rappel n'échoue pas : il n'est jamais appelé, et le widget reste vide sans un mot.
+     * `Homey.getDeviceIds()`, lui, est bien synchrone.
+     */
+    function call(path) {
+      var r;
+      try { r = Homey.api('GET', path, {}); }
+      catch (e) { return Promise.reject(e); }
+      if (r && typeof r.then === 'function') return r;
+      return Promise.reject(new Error('Homey.api n’a pas rendu de promesse'));
+    }
+
     function load() {
       var ids = [];
       try { ids = Homey.getDeviceIds() || []; } catch (e) { ids = []; }
       if (!ids.length) { render(null); return; }
-      Homey.api('GET', '/?sourceId=' + encodeURIComponent(ids[0]), null, function (err, data) {
-        if (err) {
-          el('w-name').textContent = 'Erreur';
-          el('w-sub').textContent = String(err);
-          return;
-        }
-        render(data);
+      call('/?sourceId=' + encodeURIComponent(ids[0])).then(render).catch(function (e) {
+        el('w-name').textContent = 'Erreur';
+        el('w-sub').textContent = (e && e.message) || String(e);
       });
     }
 

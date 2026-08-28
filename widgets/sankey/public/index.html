@@ -232,17 +232,40 @@
       }));
     }
 
+    /**
+     * ⚠️ Dans un WIDGET, `Homey.api` rend une PROMESSE — contrairement à une page de réglages, où
+     * elle prend un rappel en quatrième argument. Passer un rappel ici ne produit aucune erreur :
+     * il n'est simplement jamais appelé, et le widget reste vide. C'est ce qui est arrivé.
+     */
+    function call(method, path) {
+      var r;
+      try { r = Homey.api(method, path, {}); }
+      catch (e) { return Promise.reject(e); }
+      if (r && typeof r.then === 'function') return r;
+      return Promise.reject(new Error('Homey.api n’a pas rendu de promesse'));
+    }
+
+    function fail(message) {
+      document.getElementById('hero').innerHTML = '—<span class="u">W</span>';
+      document.getElementById('sub').textContent = String(message);
+    }
+
     function load() {
-      Homey.api('GET', '/', null, function (err, m) {
-        if (err) { document.getElementById('sub').textContent = String(err); return; }
+      call('GET', '/').then(function (m) {
+        if (!m) { fail('aucune donnée'); return; }
         var pct = m.total ? Math.round(m.unmeasured / m.total * 100) : 0;
         document.getElementById('hero').innerHTML = fmt(m.total) + '<span class="u">W</span>';
         document.getElementById('sub').innerHTML = m.partial
           ? 'somme des appareils — <b>aucun compteur général</b>'
           : '<b>' + fmt(m.measured) + ' W</b> identifiés · <b>' + fmt(m.unmeasured) + ' W</b> non mesurés (' + pct + '%)';
         render(m);
-      });
+      }).catch(function (e) { fail((e && e.message) || e); });
     }
+
+    // Un widget qui reste vide ne dit rien. S'il ne s'est rien passé, il doit le dire.
+    setTimeout(function () {
+      if (document.getElementById('sub').textContent === '') fail('pas de réponse de l’app');
+    }, 4000);
 
     load();
     setInterval(load, 10000);
