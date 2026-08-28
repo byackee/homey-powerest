@@ -8,5 +8,10 @@
     "en": "Real store artwork and widget previews. The Estimated Power widget now has a proper dark palette: the appearance setting had nothing to switch, so forcing dark left it on a light background.",
     "fr": "Vraies illustrations de la fiche et aperçus des widgets. Le widget « Puissance estimée » a enfin une palette sombre : le réglage d'apparence n'avait rien à basculer, et le forcer en sombre le laissait sur fond clair.",
     "nl": "Echte store-illustraties en widgetvoorbeelden. De widget Geschat vermogen heeft nu een echt donker palet."
+  },
+  "1.0.2": {
+    "en": "Links the app to its Homey Community topic, so the Support button reaches the right place.",
+    "fr": "Rattache l'app à son sujet sur le forum Homey Community, pour que le bouton Support mène au bon endroit.",
+    "nl": "Koppelt de app aan het Homey Community-topic, zodat de Support-knop op de juiste plek uitkomt."
   }
 }
