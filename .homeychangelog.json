@@ -3,5 +3,10 @@
     "en": "First release. Gives estimated power and energy to devices that have no meter, from the measured device profiles of the PowerCalc library. The companion device takes over the controls of the original, so you keep a single tile. Two dashboard widgets: the power of one device, and an energy flow diagram from the main meter down to each device.",
     "fr": "Première version. Donne une puissance et une énergie estimées aux appareils sans compteur, à partir des profils mesurés de la bibliothèque PowerCalc. L'appareil créé reprend les commandes de l'original, pour ne garder qu'une seule tuile. Deux widgets de tableau de bord : la puissance d'un appareil, et un diagramme de flux du compteur général jusqu'à chaque appareil.",
     "nl": "Eerste versie. Geeft geschat vermogen en energie aan apparaten zonder meter, op basis van de gemeten profielen uit de PowerCalc-bibliotheek. Het aangemaakte apparaat neemt de bediening van het origineel over. Twee dashboardwidgets: het vermogen van één apparaat, en een energiestroomdiagram."
+  },
+  "1.0.1": {
+    "en": "Real store artwork and widget previews. The Estimated Power widget now has a proper dark palette: the appearance setting had nothing to switch, so forcing dark left it on a light background.",
+    "fr": "Vraies illustrations de la fiche et aperçus des widgets. Le widget « Puissance estimée » a enfin une palette sombre : le réglage d'apparence n'avait rien à basculer, et le forcer en sombre le laissait sur fond clair.",
+    "nl": "Echte store-illustraties en widgetvoorbeelden. De widget Geschat vermogen heeft nu een echt donker palet."
   }
 }
