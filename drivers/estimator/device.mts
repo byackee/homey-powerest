@@ -61,6 +61,14 @@ export default class EstimatorDevice extends Homey.Device {
   private profileTimer: NodeJS.Timeout | null = null;
   private profileBackoff = PROFILE_RETRY_MIN_MS;
   private controlsRegistered = false;
+  /**
+   * Vrai quand la SOURCE n'expose pas `onoff`.
+   *
+   * Une caméra, un pont, un routeur ne s'éteignent pas : sans cette bascule, `toLightState`
+   * conclurait « éteint » faute de capability et l'appareil afficherait éternellement sa veille —
+   * c'est-à-dire zéro, puisqu'on ne renseigne pas de veille pour ce qui n'en a pas.
+   */
+  private alwaysOn = false;
 
   private get app(): PowerEstimateApp {
     return this.homey.app as PowerEstimateApp;
@@ -238,6 +246,7 @@ export default class EstimatorDevice extends Homey.Device {
     // Ici, et pas dans `onInit` : l'ordre d'initialisation des drivers n'est pas garanti par le
     // SDK, et le hub peut ne pas être connecté quand l'appareil démarre. Aligner les capabilities
     // sur une source inconnue les laisserait figées jusqu'au redémarrage suivant.
+    this.alwaysOn = !source.capabilities.includes('onoff');
     await this.syncCapabilities(source.capabilities);
     this.registerControls(source.capabilities);
 
@@ -377,7 +386,7 @@ export default class EstimatorDevice extends Homey.Device {
   private readState(): HomeyLightCapabilities {
     const read = <T,>(key: string): T | null => (this.state.get(key) ?? null) as T | null;
     return {
-      onoff: read<boolean>('onoff'),
+      onoff: this.alwaysOn ? true : read<boolean>('onoff'),
       dim: read<number>('dim'),
       light_mode: read<string>('light_mode'),
       light_temperature: read<number>('light_temperature'),

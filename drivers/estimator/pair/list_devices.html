@@ -49,6 +49,7 @@
 
     function warningText(code) {
       if (code === 'manual') return 'Aucun profil utilisable : à renseigner à la main dans les réglages';
+      if (code === 'always_on') return 'Sans interrupteur : sera compté comme allumé en permanence';
       if (code === 'self_usage') return 'Ce profil ne mesure que l’appareil lui-même, pas la charge qu’il pilote';
       if (code === 'sub_profiles') return 'Ce profil a des variantes : la mesure peut différer';
       if (code === 'unconfirmed') return 'Fabricant non confirmé — à vérifier';
@@ -76,6 +77,13 @@
           : 'Aucun profil — puissance à saisir dans les réglages';
         li.appendChild(meta);
 
+        if (typeof item.homeyWatts === 'number' && item.homeyWatts > 0) {
+          var h = document.createElement('div');
+          h.className = 'ld-warn';
+          h.textContent = 'Homey lui attribue déjà ' + item.homeyWatts + ' W : pensez à l’exclure de '
+            + 'l’Énergie après création, sinon les deux valeurs s’additionneront.';
+          li.appendChild(h);
+        }
         var warn = warningText(item.warning);
         if (warn) {
           var w = document.createElement('div');

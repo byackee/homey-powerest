@@ -32,6 +32,13 @@ const TRACE_MAX_CHARS = 500;
 /** Un appareil candidat à l'estimation, avec le profil trouvé pour lui s'il y en a un. */
 export interface Candidate {
   device: DeviceSummary;
+  /**
+   * Puissance forfaitaire que Homey attribue DÉJÀ à cet appareil, le cas échéant.
+   *
+   * L'estimer sans le savoir créerait un double comptage : les deux valeurs s'additionneraient
+   * dans l'onglet Énergie. La liste d'appairage doit le dire avant, pas l'appareil après.
+   */
+  homeyWatts: number | null;
   match: {
     manufacturer: string;
     model: string;
@@ -115,8 +122,7 @@ export default class PowerEstimateApp extends Homey.App {
    * Les appareils qui gagneraient à être estimés.
    *
    * Un appareil qui mesure déjà sa puissance est écarté : l'estimer serait au mieux redondant, au
-   * pire une seconde vérité contradictoire dans l'onglet Énergie. Un appareil sans `onoff` l'est
-   * aussi — sans état allumé/éteint, aucune stratégie ne peut se prononcer.
+   * pire une seconde vérité contradictoire dans l'onglet Énergie.
    */
   public listCandidates(): Candidate[] {
     const hub = this.getHub();
@@ -125,7 +131,13 @@ export default class PowerEstimateApp extends Homey.App {
 
     for (const device of hub.listDevices()) {
       if (device.hasPowerMeter) continue;
-      if (!device.capabilities.includes('onoff')) continue;
+      // `onoff` n'est PAS exigé. Une caméra, un pont ou un routeur n'en a pas et consomme
+      // pourtant en permanence : les écarter les laissait dans le « non mesuré » sans aucun
+      // moyen d'en sortir. Un appareil sans `onoff` est traité comme toujours allumé.
+      if (device.capabilities.length === 0) continue;
+      // Un appareil sur pile ne tire rien du secteur : le proposer noierait les vraies charges
+      // sous les boutons, les détecteurs de fenêtre et les sondes.
+      if (device.batteryPowered) continue;
 
       let match: Candidate['match'] = null;
       if (index) {
@@ -146,7 +158,7 @@ export default class PowerEstimateApp extends Homey.App {
           };
         }
       }
-      out.push({ device, match });
+      out.push({ device, match, homeyWatts: device.approxWatts });
     }
 
     // Les appareils reconnus d'abord : c'est ce que l'utilisateur vient chercher.

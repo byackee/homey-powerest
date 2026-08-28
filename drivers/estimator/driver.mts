@@ -24,6 +24,8 @@ interface CandidateView {
   detail: string;
   selectable: boolean;
   warning: string | null;
+  /** Forfait déjà attribué par Homey, en watts. `null` s'il n'y en a pas. */
+  homeyWatts: number | null;
 }
 
 export default class EstimatorDriver extends Homey.Driver {
@@ -98,12 +100,15 @@ function toView(candidate: Candidate): CandidateView {
       detail: 'no_profile',
       // Sélectionnable quand même : l'appareil sera créé en saisie manuelle.
       selectable: true,
-      warning: 'manual',
+      warning: device.capabilities.includes('onoff') ? 'manual' : 'always_on',
+      homeyWatts: candidate.homeyWatts,
     };
   }
   // L'ordre est celui de la gravité : « ça ne marchera pas » avant « ça marchera mais ne mesure
   // pas ce que vous croyez » avant « à vérifier ».
-  const warning = !match.supported
+  const warning = !device.capabilities.includes('onoff')
+    ? 'always_on'
+    : !match.supported
     ? 'manual'
     : match.selfUsageOnly
       ? 'self_usage'
@@ -122,5 +127,6 @@ function toView(candidate: Candidate): CandidateView {
     detail: match.via,
     selectable: true,
     warning,
+    homeyWatts: candidate.homeyWatts,
   };
 }

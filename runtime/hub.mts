@@ -124,6 +124,13 @@ export interface DeviceSummary extends DeviceIdentity {
   approxWatts: number | null;
   /** Vrai quand l'utilisateur a exclu l'appareil de l'onglet Énergie : il ne compte plus. */
   energyExcluded: boolean;
+  /**
+   * Vrai pour un appareil alimenté par pile.
+   *
+   * Il ne tire rien du secteur : l'estimer n'aurait aucun sens, et le proposer à l'appairage
+   * noierait les vraies charges sous les boutons, les détecteurs de fenêtre et les sondes.
+   */
+  batteryPowered: boolean;
 }
 
 /** Un abonnement vivant à une capability d'une source. */
@@ -336,6 +343,7 @@ export class HomeyApiHub extends EventEmitter {
       dataId: typeof device.data?.id === 'string' ? device.data.id : null,
       approxWatts: typeof (device.energyObj ?? {})?.W === 'number' ? (device.energyObj as { W: number }).W : null,
       energyExcluded: (device.settings ?? {})['energy_exclude'] === true,
+      batteryPowered: capabilities.includes('measure_battery') || capabilities.includes('alarm_battery'),
       hidden: (device as unknown as { hidden?: boolean }).hidden === true,
     };
   }
