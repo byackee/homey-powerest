@@ -13,10 +13,18 @@
 
 export interface Category {
   id: string;
+  /**
+   * Libellé de repli, en anglais.
+   *
+   * ⚠️ Ce n'est PAS ce qu'on affiche : la traduction se fait dans `app.mts`, seul endroit où
+   * `homey.__` existe. Ce champ ne sert que si une clé de traduction manque — auquel cas un
+   * libellé anglais vaut mieux qu'une clé brute à l'écran. Les libellés étaient auparavant écrits
+   * en français en dur, et un utilisateur anglais lisait « Éclairage ».
+   */
   label: string;
 }
 
-export const UNKNOWN_CATEGORY: Category = { id: 'other', label: 'Prises & divers' };
+export const UNKNOWN_CATEGORY: Category = { id: 'other', label: 'Sockets & other' };
 
 /**
  * Classes Homey rangées par usage.
@@ -27,37 +35,37 @@ export const UNKNOWN_CATEGORY: Category = { id: 'other', label: 'Prises & divers
  * servent — plutôt que de les répartir au jugé.
  */
 const BY_CLASS: Readonly<Record<string, Category>> = {
-  light: { id: 'light', label: 'Éclairage' },
+  light: { id: 'light', label: 'Lighting' },
 
-  tv: { id: 'media', label: 'Multimédia' },
-  settopbox: { id: 'media', label: 'Multimédia' },
-  speaker: { id: 'media', label: 'Multimédia' },
-  amplifier: { id: 'media', label: 'Multimédia' },
+  tv: { id: 'media', label: 'Media' },
+  settopbox: { id: 'media', label: 'Media' },
+  speaker: { id: 'media', label: 'Media' },
+  amplifier: { id: 'media', label: 'Media' },
 
-  thermostat: { id: 'climate', label: 'Climat & air' },
-  heater: { id: 'climate', label: 'Climat & air' },
-  fan: { id: 'climate', label: 'Climat & air' },
-  airconditioning: { id: 'climate', label: 'Climat & air' },
-  airpurifier: { id: 'climate', label: 'Climat & air' },
-  airfryer: { id: 'appliance', label: 'Électroménager' },
+  thermostat: { id: 'climate', label: 'Climate & air' },
+  heater: { id: 'climate', label: 'Climate & air' },
+  fan: { id: 'climate', label: 'Climate & air' },
+  airconditioning: { id: 'climate', label: 'Climate & air' },
+  airpurifier: { id: 'climate', label: 'Climate & air' },
+  airfryer: { id: 'appliance', label: 'Appliances' },
 
-  washingmachine: { id: 'appliance', label: 'Électroménager' },
-  dryer: { id: 'appliance', label: 'Électroménager' },
-  dishwasher: { id: 'appliance', label: 'Électroménager' },
-  oven: { id: 'appliance', label: 'Électroménager' },
-  fridge: { id: 'appliance', label: 'Électroménager' },
-  freezer: { id: 'appliance', label: 'Électroménager' },
-  coffeemachine: { id: 'appliance', label: 'Électroménager' },
-  kettle: { id: 'appliance', label: 'Électroménager' },
-  kitchenhood: { id: 'appliance', label: 'Électroménager' },
-  vacuumcleaner: { id: 'appliance', label: 'Électroménager' },
+  washingmachine: { id: 'appliance', label: 'Appliances' },
+  dryer: { id: 'appliance', label: 'Appliances' },
+  dishwasher: { id: 'appliance', label: 'Appliances' },
+  oven: { id: 'appliance', label: 'Appliances' },
+  fridge: { id: 'appliance', label: 'Appliances' },
+  freezer: { id: 'appliance', label: 'Appliances' },
+  coffeemachine: { id: 'appliance', label: 'Appliances' },
+  kettle: { id: 'appliance', label: 'Appliances' },
+  kitchenhood: { id: 'appliance', label: 'Appliances' },
+  vacuumcleaner: { id: 'appliance', label: 'Appliances' },
 
-  camera: { id: 'security', label: 'Capteurs & sécurité' },
-  sensor: { id: 'security', label: 'Capteurs & sécurité' },
-  lock: { id: 'security', label: 'Capteurs & sécurité' },
-  smokealarm: { id: 'security', label: 'Capteurs & sécurité' },
-  homealarm: { id: 'security', label: 'Capteurs & sécurité' },
-  doorbell: { id: 'security', label: 'Capteurs & sécurité' },
+  camera: { id: 'security', label: 'Sensors & security' },
+  sensor: { id: 'security', label: 'Sensors & security' },
+  lock: { id: 'security', label: 'Sensors & security' },
+  smokealarm: { id: 'security', label: 'Sensors & security' },
+  homealarm: { id: 'security', label: 'Sensors & security' },
+  doorbell: { id: 'security', label: 'Sensors & security' },
 
   socket: UNKNOWN_CATEGORY,
   other: UNKNOWN_CATEGORY,
@@ -71,16 +79,16 @@ const BY_CLASS: Readonly<Record<string, Category>> = {
  * sait ce que c'est.
  */
 const BY_DEVICE_TYPE: Readonly<Record<string, Category>> = {
-  printer: { id: 'office', label: 'Bureautique & réseau' },
-  network: { id: 'office', label: 'Bureautique & réseau' },
-  ups: { id: 'office', label: 'Bureautique & réseau' },
-  smart_speaker: { id: 'media', label: 'Multimédia' },
-  television: { id: 'media', label: 'Multimédia' },
-  light: { id: 'light', label: 'Éclairage' },
-  fan: { id: 'climate', label: 'Climat & air' },
-  heating: { id: 'climate', label: 'Climat & air' },
-  vacuum_robot: { id: 'appliance', label: 'Électroménager' },
-  camera: { id: 'security', label: 'Capteurs & sécurité' },
+  printer: { id: 'office', label: 'Office & network' },
+  network: { id: 'office', label: 'Office & network' },
+  ups: { id: 'office', label: 'Office & network' },
+  smart_speaker: { id: 'media', label: 'Media' },
+  television: { id: 'media', label: 'Media' },
+  light: { id: 'light', label: 'Lighting' },
+  fan: { id: 'climate', label: 'Climate & air' },
+  heating: { id: 'climate', label: 'Climate & air' },
+  vacuum_robot: { id: 'appliance', label: 'Appliances' },
+  camera: { id: 'security', label: 'Sensors & security' },
 };
 
 /**
@@ -90,12 +98,12 @@ const BY_DEVICE_TYPE: Readonly<Record<string, Category>> = {
  * propose un usage que le modèle ne connaît pas.
  */
 export const CATEGORIES: readonly Category[] = [
-  { id: 'light', label: 'Éclairage' },
-  { id: 'appliance', label: 'Électroménager' },
-  { id: 'media', label: 'Multimédia' },
-  { id: 'climate', label: 'Climat & air' },
-  { id: 'office', label: 'Bureautique & réseau' },
-  { id: 'security', label: 'Capteurs & sécurité' },
+  { id: 'light', label: 'Lighting' },
+  { id: 'appliance', label: 'Appliances' },
+  { id: 'media', label: 'Media' },
+  { id: 'climate', label: 'Climate & air' },
+  { id: 'office', label: 'Office & network' },
+  { id: 'security', label: 'Sensors & security' },
   UNKNOWN_CATEGORY,
 ];
 

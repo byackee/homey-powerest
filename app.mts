@@ -20,7 +20,7 @@ import { HomeyApiHub, type DeviceSummary } from './runtime/hub.mjs';
 import { LibraryClient } from './runtime/library.mjs';
 import { isSelfUsageOnly, matchDevice, type LibraryIndex, type Match } from './lib/matching.mjs';
 import { SUPPORTED_STRATEGIES } from './lib/types.mjs';
-import { buildSankey, type FlowDevice, type Grouping, type SankeyModel } from './lib/sankey.mjs';
+import { buildSankey, UNMEASURED_ID, type FlowDevice, type Grouping, type SankeyModel } from './lib/sankey.mjs';
 import { crossedUp } from './lib/threshold.mjs';
 import { CATEGORIES, categorise, type Category } from './lib/categories.mjs';
 
@@ -264,7 +264,33 @@ export default class PowerEstimateApp extends Homey.App {
    * portent les estimations : les écarter viderait le diagramme de tout ce que l'app apporte.
    */
   public energyFlow(grouping?: readonly Grouping[]): SankeyModel {
-    return buildSankey(this.flowDevices(), { grouping });
+    return this.translate(buildSankey(this.flowDevices(), { grouping }));
+  }
+
+  /**
+   * Traduit les libellés produits par le modèle.
+   *
+   * `lib/sankey` et `lib/categories` sont purs : ils ne connaissent pas `homey.__`, et les y
+   * coupler les rendrait intestables. Ils rendent donc des identifiants et un libellé de repli
+   * anglais, et la traduction se fait ici, au dernier moment. Sans cette étape, les libellés
+   * d'usage restaient en français pour tout le monde.
+   */
+  private translate(model: SankeyModel): SankeyModel {
+    const label = (key: string, fallback: string): string => {
+      const translated = this.homey.__(key);
+      // `homey.__` rend la clé elle-même quand elle manque : on préfère l'anglais à `category.x`.
+      return typeof translated === 'string' && translated !== key && translated !== '' ? translated : fallback;
+    };
+    return {
+      ...model,
+      nodes: model.nodes.map((node) => {
+        if (node.id === UNMEASURED_ID) return { ...node, label: label('category.unmeasured', node.label) };
+        if (node.categoryId && node.depth === 1) {
+          return { ...node, label: label(`category.${node.categoryId}`, node.label) };
+        }
+        return node;
+      }),
+    };
   }
 
   /**
@@ -399,13 +425,15 @@ export default class PowerEstimateApp extends Homey.App {
       .filter((device) => !device.cumulative)
       .map((device) => {
         const category: Category = categorise(device.deviceClass, device.deviceType, device.categoryOverride);
+        const translated = this.homey.__(`category.${category.id}`);
         return {
           id: device.id,
           name: device.name,
           zone: device.zoneName,
           watts: device.watts,
           categoryId: category.id,
-          categoryLabel: category.label,
+          categoryLabel: typeof translated === 'string' && translated !== `category.${category.id}` && translated !== ''
+            ? translated : category.label,
           manual: (overrides[device.id] ?? null) !== null,
           poweredBy: device.poweredBy ?? null,
           approximated: device.approximated === true,
@@ -416,7 +444,11 @@ export default class PowerEstimateApp extends Homey.App {
 
   /** La liste des usages proposables, pour que la page n'en invente aucun. */
   public availableCategories(): readonly Category[] {
-    return CATEGORIES;
+    return CATEGORIES.map((c) => {
+      const translated = this.homey.__(`category.${c.id}`);
+      return typeof translated === 'string' && translated !== `category.${c.id}` && translated !== ''
+        ? { ...c, label: translated } : c;
+    });
   }
 
   /** Journal circulaire consultable depuis la page de réglages. */

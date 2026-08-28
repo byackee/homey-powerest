@@ -12,5 +12,31 @@
     "source_gone": "L'appareil source n'est plus disponible",
     "exclude_manually": "Double comptage : ouvrez l'appareil source et activez Réglages → Énergie → Exclure de l'Énergie. Homey n'autorise pas une app à le faire à votre place.",
     "hidden_but_partial": "L'appareil source est masqué alors que celui-ci ne reprend pas __count__ de ses fonctions. Réaffichez-le : l'exclure de l'Énergie suffit à éviter le double comptage."
+  },
+  "category": {
+    "light": "Éclairage",
+    "appliance": "Électroménager",
+    "media": "Multimédia",
+    "climate": "Climat & air",
+    "office": "Bureautique & réseau",
+    "security": "Capteurs & sécurité",
+    "other": "Prises & divers",
+    "unmeasured": "Non mesuré"
+  },
+  "widget": {
+    "identified": "identifiés",
+    "unmeasured": "non mesurés",
+    "sum_only": "somme des appareils",
+    "no_meter": "aucun compteur général",
+    "nothing": "Aucun appareil ne mesure de puissance.",
+    "of_home": "du logement",
+    "no_estimate": "Aucune estimation",
+    "add_device": "Ajoutez cet appareil dans Power Estimator",
+    "error": "Erreur",
+    "no_reply": "pas de réponse de l'app",
+    "no_data": "aucune donnée",
+    "draw_failed": "Tracé impossible",
+    "no_library": "Bibliothèque de tracé absente",
+    "double_counted": "Source non exclue de l'Énergie : elle y est comptée deux fois."
   }
 }

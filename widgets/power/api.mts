@@ -29,12 +29,29 @@ export interface EstimateView {
   kwh: number | null;
   /** Vrai tant que la source n'est pas exclue de l'Énergie : le total Homey est alors doublé. */
   doubleCounted: boolean;
+  /**
+   * Libellés de la vue.
+   *
+   * Une page de widget n'a pas accès à `homey.__` : sans cela son texte reste figé dans une seule
+   * langue, ce qui était le cas — tout était en français.
+   */
+  labels: Record<string, string>;
+}
+
+function labels(homey: Homey.App['homey']): Record<string, string> {
+  const keys = ['no_estimate', 'add_device', 'error', 'double_counted', 'no_reply'];
+  const out: Record<string, string> = {};
+  for (const key of keys) {
+    const value = homey.__(`widget.${key}`);
+    out[key] = typeof value === 'string' && value !== `widget.${key}` ? value : key;
+  }
+  return out;
 }
 
 export default {
   async getEstimate({ homey, query }: Request): Promise<EstimateView> {
     const sourceId = query['sourceId'];
-    const empty: EstimateView = { found: false, name: null, profile: null, watts: null, kwh: null, doubleCounted: false };
+    const empty: EstimateView = { found: false, name: null, profile: null, watts: null, kwh: null, doubleCounted: false, labels: labels(homey) };
     if (typeof sourceId !== 'string' || sourceId === '') return empty;
 
     const driver = homey.drivers.getDriver('estimator');
@@ -55,6 +72,7 @@ export default {
       // Reconstruit depuis l'état RÉEL de la source, comme le fait l'appareil compagnon : c'est le
       // seul avertissement qui compte, parce qu'il signale un total d'Énergie faux.
       doubleCounted: isDoubleCounted(homey, sourceId, companion.getSetting('exclude_source') !== false),
+      labels: labels(homey),
     };
   },
 };

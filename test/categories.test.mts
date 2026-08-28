@@ -62,3 +62,17 @@ test('le menu ne propose que des usages que le modèle connaît', () => {
   }
   assert.equal(categoryById('inexistant'), null);
 });
+
+test('les libellés de repli sont en anglais, pas en français', () => {
+  // Ils ne sont affichés que si une clé de traduction manque : une clé brute à l'écran est pire,
+  // mais du français pour un utilisateur néerlandais l'est tout autant. C'est ce qui existait.
+  for (const c of CATEGORIES) {
+    assert.ok(!/[éèêàçÉÈÀÇ]/.test(c.label), `${c.id} : « ${c.label} » n'est pas de l'anglais`);
+  }
+});
+
+test('chaque catégorie a un identifiant utilisable comme clé de traduction', () => {
+  for (const c of CATEGORIES) {
+    assert.match(c.id, /^[a-z_]+$/, `${c.id} ne convient pas à une clé de locale`);
+  }
+});

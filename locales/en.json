@@ -12,5 +12,31 @@
     "source_gone": "The source device is no longer available",
     "exclude_manually": "Double counting: open the source device in Homey and turn on Settings → Energy → Exclude from Energy. Homey does not let an app do this for you.",
     "hidden_but_partial": "The source device is hidden but this one does not carry __count__ of its functions. Unhide it: excluding it from Energy is enough to avoid double counting."
+  },
+  "category": {
+    "light": "Lighting",
+    "appliance": "Appliances",
+    "media": "Media",
+    "climate": "Climate & air",
+    "office": "Office & network",
+    "security": "Sensors & security",
+    "other": "Sockets & other",
+    "unmeasured": "Unmeasured"
+  },
+  "widget": {
+    "identified": "identified",
+    "unmeasured": "unmeasured",
+    "sum_only": "sum of devices",
+    "no_meter": "no main meter",
+    "nothing": "No device reports power.",
+    "of_home": "of the home",
+    "no_estimate": "No estimate",
+    "add_device": "Add this device in Power Estimator",
+    "error": "Error",
+    "no_reply": "no reply from the app",
+    "no_data": "no data",
+    "draw_failed": "Cannot draw",
+    "no_library": "Drawing library missing",
+    "double_counted": "Source not excluded from Energy: it is counted twice there."
   }
 }

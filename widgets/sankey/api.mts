@@ -20,11 +20,29 @@ interface Request {
   query?: Record<string, string | undefined>;
 }
 
+/**
+ * Libellés de la vue, traduits ici.
+ *
+ * Une page de widget n'a pas accès à `homey.__` : tout texte écrit dans son HTML est figé dans
+ * une seule langue. Les widgets étaient donc entièrement en français dans une app qui se déclare
+ * trilingue. Les libellés voyagent avec la donnée.
+ */
+function labels(homey: Homey.App['homey']): Record<string, string> {
+  const keys = ['identified', 'unmeasured', 'sum_only', 'no_meter', 'nothing', 'of_home',
+    'no_reply', 'no_data', 'draw_failed', 'no_library'];
+  const out: Record<string, string> = {};
+  for (const key of keys) {
+    const value = homey.__(`widget.${key}`);
+    out[key] = typeof value === 'string' && value !== `widget.${key}` ? value : key;
+  }
+  return out;
+}
+
 export default {
-  async getFlow({ homey, query }: Request): Promise<SankeyModel> {
+  async getFlow({ homey, query }: Request): Promise<SankeyModel & { labels: Record<string, string> }> {
     // Le regroupement vient du réglage du widget. Une valeur inconnue retombe sur la vue croisée
     // plutôt que d'échouer : un widget mal configuré doit afficher quelque chose.
     const grouping = GROUPINGS[query?.['grouping'] ?? ''] ?? GROUPINGS['category+zone'];
-    return (homey.app as PowerEstimateApp).energyFlow(grouping);
+    return { ...(homey.app as PowerEstimateApp).energyFlow(grouping), labels: labels(homey) };
   },
 };

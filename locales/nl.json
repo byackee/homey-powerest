@@ -12,5 +12,31 @@
     "source_gone": "Het bronapparaat is niet meer beschikbaar",
     "exclude_manually": "Dubbeltelling: open het bronapparaat en zet Instellingen → Energie → Uitsluiten van Energie aan. Homey staat een app dit niet toe.",
     "hidden_but_partial": "Het bronapparaat is verborgen maar dit apparaat neemt __count__ van zijn functies niet over. Maak het weer zichtbaar."
+  },
+  "category": {
+    "light": "Verlichting",
+    "appliance": "Huishoudelijk",
+    "media": "Media",
+    "climate": "Klimaat & lucht",
+    "office": "Kantoor & netwerk",
+    "security": "Sensoren & beveiliging",
+    "other": "Stopcontacten & overig",
+    "unmeasured": "Niet gemeten"
+  },
+  "widget": {
+    "identified": "geïdentificeerd",
+    "unmeasured": "niet gemeten",
+    "sum_only": "som van apparaten",
+    "no_meter": "geen hoofdmeter",
+    "nothing": "Geen apparaat meldt vermogen.",
+    "of_home": "van de woning",
+    "no_estimate": "Geen schatting",
+    "add_device": "Voeg dit apparaat toe in Power Estimator",
+    "error": "Fout",
+    "no_reply": "geen antwoord van de app",
+    "no_data": "geen gegevens",
+    "draw_failed": "Tekenen mislukt",
+    "no_library": "Tekenbibliotheek ontbreekt",
+    "double_counted": "Bron niet uitgesloten van Energie: die wordt daar dubbel geteld."
   }
 }

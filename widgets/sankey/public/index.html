@@ -87,6 +87,11 @@
     var W = 1000, LABEL_ROOM = 206, NODE_W = 8, NODE_PAD = 7;
     var SLOTS = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6'];
     var svg = document.getElementById('svg');
+    // Libellés servis par l'app, traduits. Repli anglais si l'appel échoue avant de les livrer.
+    var L = { identified: 'identified', unmeasured: 'unmeasured', sum_only: 'sum of devices',
+              no_meter: 'no main meter', nothing: 'No device reports power.', of_home: 'of the home',
+              no_reply: 'no reply from the app', no_data: 'no data',
+              draw_failed: 'Cannot draw', no_library: 'Drawing library missing' };
     var tip = document.getElementById('tip');
 
     function el(tag, attrs) {
@@ -129,11 +134,11 @@
       var H = Math.max(160, svg.clientHeight || 320);
       svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
       if (!m.total || m.nodes.length < 2) {
-        document.getElementById('sub').textContent = 'Aucun appareil ne mesure de puissance.';
+        document.getElementById('sub').textContent = L.nothing;
         return;
       }
       if (!window.d3 || !window.d3.sankey) {
-        document.getElementById('sub').textContent = 'Bibliothèque de tracé absente';
+        document.getElementById('sub').textContent = L.no_library;
         return;
       }
 
@@ -188,7 +193,7 @@
           .extent([[2, 4], [W - LABEL_ROOM, H - 4]])
           ({ nodes: nodes, links: links });
       } catch (e) {
-        document.getElementById('sub').textContent = 'Tracé impossible : ' + (e && e.message);
+        document.getElementById('sub').textContent = L.draw_failed + ' : ' + (e && e.message);
         return;
       }
 
@@ -229,7 +234,7 @@
         var color = n.depth === 0 ? css.getPropertyValue('--text-secondary').trim() : colorOf(n);
         var rect = el('rect', { x: n.x0, y: n.y0, width: n.x1 - n.x0, height: h, rx: 2, fill: color, class: 'node' });
         var pct = m.total ? Math.round(n.watts / m.total * 100) : 0;
-        detail(rect, n.label + '   ' + fmt(n.watts) + ' W   ·   ' + pct + ' % du logement');
+        detail(rect, n.label + '   ' + fmt(n.watts) + ' W   ·   ' + pct + ' % ' + L.of_home);
         svg.appendChild(rect);
 
         if (h < 9) return;
@@ -288,19 +293,21 @@
       } catch (e) { /* réglage indisponible : la vue croisée fait un défaut acceptable */ }
 
       call('GET', '/?grouping=' + encodeURIComponent(grouping)).then(function (m) {
-        if (!m) { fail('aucune donnée'); return; }
+        if (!m) { fail(L.no_data); return; }
+        if (m.labels) L = m.labels;
         var pct = m.total ? Math.round(m.unmeasured / m.total * 100) : 0;
         document.getElementById('hero').innerHTML = fmt(m.total) + '<span class="u">W</span>';
         document.getElementById('sub').innerHTML = m.partial
-          ? 'somme des appareils — <b>aucun compteur général</b>'
-          : '<b>' + fmt(m.measured) + ' W</b> identifiés · <b>' + fmt(m.unmeasured) + ' W</b> non mesurés (' + pct + '%)';
+          ? L.sum_only + ' — <b>' + L.no_meter + '</b>'
+          : '<b>' + fmt(m.measured) + ' W</b> ' + L.identified + ' · <b>' + fmt(m.unmeasured) + ' W</b> '
+            + L.unmeasured + ' (' + pct + '%)';
         render(m);
       }).catch(function (e) { fail((e && e.message) || e); });
     }
 
     // Un widget qui reste vide ne dit rien. S'il ne s'est rien passé, il doit le dire.
     setTimeout(function () {
-      if (document.getElementById('sub').textContent === '') fail('pas de réponse de l’app');
+      if (document.getElementById('sub').textContent === '') fail(L.no_reply);
     }, 4000);
 
     // Un clic hors d'une bande relâche l'épinglage.

@@ -58,14 +58,17 @@
     'use strict';
 
     var REFRESH_MS = 10000;
+    var L = { no_estimate: 'No estimate', add_device: 'Add this device in Power Estimator',
+              error: 'Error', no_reply: 'no reply from the app',
+              double_counted: 'Source not excluded from Energy: it is counted twice there.' };
 
     function el(id) { return document.getElementById(id); }
 
     function render(data) {
       if (!data || !data.found) {
-        el('w-name').textContent = 'Aucune estimation';
+        el('w-name').textContent = L.no_estimate;
         el('w-power').innerHTML = '—<span class="u">W</span>';
-        el('w-sub').textContent = 'Ajoutez cet appareil dans Power Estimator';
+        el('w-sub').textContent = L.add_device;
         el('w-warn').textContent = '';
         return;
       }
@@ -75,9 +78,7 @@
         + '<span class="u">W</span>';
       var kwh = typeof data.kwh === 'number' ? data.kwh.toFixed(2) + ' kWh' : '';
       el('w-sub').textContent = [kwh, data.profile].filter(Boolean).join(' · ');
-      el('w-warn').textContent = data.doubleCounted
-        ? 'Source non exclue de l’Énergie : elle y est comptée deux fois.'
-        : '';
+      el('w-warn').textContent = data.doubleCounted ? L.double_counted : '';
     }
 
 
@@ -116,8 +117,11 @@
       var ids = [];
       try { ids = Homey.getDeviceIds() || []; } catch (e) { ids = []; }
       if (!ids.length) { render(null); return; }
-      call('/?sourceId=' + encodeURIComponent(ids[0])).then(render).catch(function (e) {
-        el('w-name').textContent = 'Erreur';
+      call('/?sourceId=' + encodeURIComponent(ids[0])).then(function (d) {
+        if (d && d.labels) L = d.labels;
+        render(d);
+      }).catch(function (e) {
+        el('w-name').textContent = L.error;
         el('w-sub').textContent = (e && e.message) || String(e);
       });
     }

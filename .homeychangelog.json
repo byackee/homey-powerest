@@ -13,5 +13,10 @@
     "en": "Links the app to its Homey Community topic, so the Support button reaches the right place.",
     "fr": "Rattache l'app à son sujet sur le forum Homey Community, pour que le bouton Support mène au bon endroit.",
     "nl": "Koppelt de app aan het Homey Community-topic, zodat de Support-knop op de juiste plek uitkomt."
+  },
+  "1.0.3": {
+    "en": "The widgets and the usage categories are now translated. Both were written in French only, so English and Dutch users saw French labels throughout.",
+    "fr": "Les widgets et les catégories d'usage sont désormais traduits. Les deux étaient écrits en français seulement, si bien que les utilisateurs anglophones et néerlandophones lisaient des libellés français.",
+    "nl": "De widgets en gebruikscategorieën zijn nu vertaald. Beide waren alleen in het Frans geschreven."
   }
 }
