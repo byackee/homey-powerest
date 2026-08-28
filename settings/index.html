@@ -39,13 +39,9 @@
         set('st-library', status.libraryError
           ? 'indisponible — ' + status.libraryError
           : status.libraryLoaded ? status.libraryModels + ' modèles' : 'chargement…');
+        set('st-candidates', status.estimable + ' sur ' + status.candidates);
       });
 
-      Homey.api('GET', '/candidates', null, function (err, list) {
-        if (err) { set('st-candidates', 'erreur'); return; }
-        var withProfile = list.filter(function (c) { return c.supported; }).length;
-        set('st-candidates', withProfile + ' sur ' + list.length);
-      });
 
       Homey.api('GET', '/trace', null, function (err, lines) {
         set('st-trace', err ? String(err) : (lines.length ? lines.join('\n') : 'rien à signaler'));
