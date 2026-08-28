@@ -2,7 +2,8 @@
   "pair": {
     "gone": "Cet appareil n'est plus disponible",
     "no_profile": "Aucun profil mesuré n'existe pour cet appareil",
-    "unsupported": "Ce profil utilise une stratégie de calcul non gérée par cette version"
+    "unsupported": "Ce profil utilise une stratégie de calcul non gérée par cette version",
+    "manual": "Saisie manuelle"
   },
   "device": {
     "no_source": "Aucun appareil source enregistré",

@@ -28,6 +28,7 @@ import { computePower } from '../../lib/strategies.mjs';
 import { toLightState, type HomeyLightCapabilities } from '../../lib/units.mjs';
 import { ProfileError } from '../../lib/types.mjs';
 import { capabilityDiff, plannedCapabilities, writableCapabilities } from '../../lib/mirror.mjs';
+import { effectiveMode, manualModel } from '../../lib/manual.mjs';
 
 /**
  * Capabilities de la source qui influencent la consommation.
@@ -115,7 +116,13 @@ export default class EstimatorDevice extends Homey.Device {
       // valeur qui vient d'être validée plutôt que l'ancienne.
       await this.applyExclusion();
     }
-    if (changedKeys.includes('min_mired') || changedKeys.includes('max_mired')) {
+    if (changedKeys.includes('mode')) {
+      // Repasser en mode profil doit pouvoir déclencher le téléchargement qu'on avait évité.
+      await this.loadProfile();
+      return;
+    }
+    const recomputeKeys = ['min_mired', 'max_mired', 'power_off', 'power_on', 'power_min', 'power_max'];
+    if (changedKeys.some((key) => recomputeKeys.includes(key))) {
       await this.recompute(Date.now());
     }
   }
@@ -169,8 +176,18 @@ export default class EstimatorDevice extends Homey.Device {
   private async loadProfile(): Promise<void> {
     const manufacturer = String(this.getStoreValue('manufacturer') ?? '');
     const model = String(this.getStoreValue('model') ?? '');
-    if (manufacturer === '' || model === '') {
-      await this.setUnavailable(this.homey.__('device.no_profile'));
+    const wantsProfile = this.getSetting('mode') !== 'fixed'
+      && this.getSetting('mode') !== 'linear'
+      && manufacturer !== '' && model !== '';
+
+    // En saisie manuelle, la bibliothèque n'a rien à dire : ni téléchargement, ni indisponibilité
+    // sur un profil absent. C'est ce qui rend appairables les appareils qu'elle ne connaît pas.
+    if (!wantsProfile) {
+      this.profile = null;
+      await this.attach();
+      await this.applyExclusion();
+      await this.setAvailable();
+      await this.recompute(Date.now());
       return;
     }
 
@@ -316,8 +333,20 @@ export default class EstimatorDevice extends Homey.Device {
    * qu'on vient d'allumer à la période où elle était éteinte.
    */
   private async recompute(now: number): Promise<void> {
-    const profile = this.profile;
-    if (!profile) return;
+    // Le mode manuel fabrique un `ProfileModel` que le moteur traite comme n'importe quel profil :
+    // une seule implémentation des stratégies, donc un seul endroit où un défaut peut se cacher.
+    const mode = effectiveMode(this.getSetting('mode'), this.profile !== null);
+    const manual = manualModel({
+      mode,
+      powerOff: this.getSetting('power_off'),
+      powerOn: this.getSetting('power_on'),
+      powerMin: this.getSetting('power_min'),
+      powerMax: this.getSetting('power_max'),
+    });
+
+    const model = manual ?? this.profile?.model ?? null;
+    const tables = manual ? {} : (this.profile?.tables ?? {});
+    if (!model) return;
 
     let watts = 0;
     try {
@@ -325,7 +354,7 @@ export default class EstimatorDevice extends Homey.Device {
         minMired: numberSetting(this.getSetting('min_mired')),
         maxMired: numberSetting(this.getSetting('max_mired')),
       });
-      watts = computePower(profile.model, profile.tables, state).watts;
+      watts = computePower(model, tables, state).watts;
     } catch (err) {
       this.app.note('calc!', `${this.getName()} : ${err instanceof Error ? err.message : String(err)}`);
       this.error('calcul', err);

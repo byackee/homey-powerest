@@ -2,7 +2,8 @@
   "pair": {
     "gone": "Dit apparaat is niet meer beschikbaar",
     "no_profile": "Er bestaat geen gemeten profiel voor dit apparaat",
-    "unsupported": "Dit profiel gebruikt een berekeningsstrategie die deze versie niet ondersteunt"
+    "unsupported": "Dit profiel gebruikt een berekeningsstrategie die deze versie niet ondersteunt",
+    "manual": "Handmatige invoer"
   },
   "device": {
     "no_source": "Geen bronapparaat opgeslagen",

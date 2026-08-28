@@ -48,7 +48,7 @@
     function status(text) { el('ld-status').textContent = text; }
 
     function warningText(code) {
-      if (code === 'unsupported') return 'Stratégie non gérée par cette version';
+      if (code === 'manual') return 'Aucun profil utilisable : à renseigner à la main dans les réglages';
       if (code === 'self_usage') return 'Ce profil ne mesure que l’appareil lui-même, pas la charge qu’il pilote';
       if (code === 'sub_profiles') return 'Ce profil a des variantes : la mesure peut différer';
       if (code === 'unconfirmed') return 'Fabricant non confirmé — à vérifier';
@@ -73,7 +73,7 @@
         meta.className = 'ld-meta';
         meta.textContent = item.profile
           ? item.profile + ' · ' + item.strategy + ' · via ' + item.detail
-          : 'Aucun profil dans la bibliothèque';
+          : 'Aucun profil — puissance à saisir dans les réglages';
         li.appendChild(meta);
 
         var warn = warningText(item.warning);

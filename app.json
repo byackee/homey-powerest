@@ -159,6 +159,104 @@
           "value": ""
         },
         {
+          "id": "mode",
+          "type": "dropdown",
+          "value": "profile",
+          "label": {
+            "en": "Power source",
+            "fr": "Origine de la puissance",
+            "nl": "Bron van het vermogen"
+          },
+          "hint": {
+            "en": "Use the measured library profile, or enter the values yourself. Manual entry is the answer when the library does not know the device, or when its profile describes something else — a smart plug's profile is the plug, not the lamp plugged into it.",
+            "fr": "Utiliser le profil mesuré de la bibliothèque, ou saisir les valeurs soi-même. La saisie manuelle est la réponse quand la bibliothèque ne connaît pas l'appareil, ou quand son profil décrit autre chose — le profil d'une prise connectée décrit la prise, pas la lampe branchée dessus.",
+            "nl": "Gebruik het gemeten bibliotheekprofiel, of voer de waarden zelf in."
+          },
+          "values": [
+            {
+              "id": "profile",
+              "label": {
+                "en": "Measured profile",
+                "fr": "Profil mesuré",
+                "nl": "Gemeten profiel"
+              }
+            },
+            {
+              "id": "fixed",
+              "label": {
+                "en": "Fixed value",
+                "fr": "Valeur fixe",
+                "nl": "Vaste waarde"
+              }
+            },
+            {
+              "id": "linear",
+              "label": {
+                "en": "Scales with brightness",
+                "fr": "Proportionnelle à la gradation",
+                "nl": "Schaalt met dimniveau"
+              }
+            }
+          ]
+        },
+        {
+          "id": "power_off",
+          "type": "number",
+          "value": 0,
+          "min": 0,
+          "max": 10000,
+          "decimals": 2,
+          "label": {
+            "en": "Power when off (W)",
+            "fr": "Puissance à l'arrêt (W)",
+            "nl": "Vermogen uit (W)"
+          }
+        },
+        {
+          "id": "power_on",
+          "type": "number",
+          "value": 0,
+          "min": 0,
+          "max": 10000,
+          "decimals": 2,
+          "label": {
+            "en": "Power when on (W)",
+            "fr": "Puissance allumé (W)",
+            "nl": "Vermogen aan (W)"
+          },
+          "hint": {
+            "en": "Used by the 'Fixed value' mode.",
+            "fr": "Utilisée par le mode « Valeur fixe ».",
+            "nl": "Gebruikt door 'Vaste waarde'."
+          }
+        },
+        {
+          "id": "power_min",
+          "type": "number",
+          "value": 0,
+          "min": 0,
+          "max": 10000,
+          "decimals": 2,
+          "label": {
+            "en": "Power at lowest brightness (W)",
+            "fr": "Puissance à la gradation minimale (W)",
+            "nl": "Vermogen bij laagste dimniveau (W)"
+          }
+        },
+        {
+          "id": "power_max",
+          "type": "number",
+          "value": 0,
+          "min": 0,
+          "max": 10000,
+          "decimals": 2,
+          "label": {
+            "en": "Power at full brightness (W)",
+            "fr": "Puissance à pleine gradation (W)",
+            "nl": "Vermogen bij vol dimniveau (W)"
+          }
+        },
+        {
           "id": "exclude_source",
           "type": "checkbox",
           "value": true,

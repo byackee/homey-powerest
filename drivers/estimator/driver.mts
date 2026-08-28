@@ -56,8 +56,11 @@ export default class EstimatorDriver extends Homey.Driver {
     session.setHandler('build', async (deviceId: string) => {
       const candidate = this.app.listCandidates().find((c) => c.device.id === deviceId);
       if (!candidate) throw new Error(this.homey.__('pair.gone'));
-      if (!candidate.match) throw new Error(this.homey.__('pair.no_profile'));
-      if (!candidate.match.supported) throw new Error(this.homey.__('pair.unsupported'));
+
+      // Un appareil sans profil exploitable n'est PAS refusé : il est créé en saisie manuelle.
+      // C'est le seul moyen de couvrir ce que la bibliothèque ignore — sur un parc réel, 12 des
+      // 35 candidats — et de corriger un profil qui décrit autre chose que la charge mesurée.
+      const usable = candidate.match !== null && candidate.match.supported;
 
       return {
         name: candidate.device.name,
@@ -69,12 +72,13 @@ export default class EstimatorDriver extends Homey.Driver {
         store: {
           sourceId: candidate.device.id,
           sourceClass: candidate.device.class,
-          manufacturer: candidate.match.manufacturer,
-          model: candidate.match.model,
+          manufacturer: usable ? candidate.match?.manufacturer ?? '' : '',
+          model: usable ? candidate.match?.model ?? '' : '',
         },
         settings: {
           source_name: `${candidate.device.name}${candidate.device.zoneName ? ` — ${candidate.device.zoneName}` : ''}`,
-          profile_label: candidate.match.label,
+          profile_label: usable ? candidate.match?.label ?? '' : this.homey.__('pair.manual'),
+          mode: usable ? 'profile' : 'fixed',
         },
       };
     });
@@ -92,14 +96,15 @@ function toView(candidate: Candidate): CandidateView {
       profile: null,
       strategy: null,
       detail: 'no_profile',
-      selectable: false,
-      warning: null,
+      // Sélectionnable quand même : l'appareil sera créé en saisie manuelle.
+      selectable: true,
+      warning: 'manual',
     };
   }
   // L'ordre est celui de la gravité : « ça ne marchera pas » avant « ça marchera mais ne mesure
   // pas ce que vous croyez » avant « à vérifier ».
   const warning = !match.supported
-    ? 'unsupported'
+    ? 'manual'
     : match.selfUsageOnly
       ? 'self_usage'
       : match.hasSubProfiles
@@ -115,7 +120,7 @@ function toView(candidate: Candidate): CandidateView {
     profile: match.label,
     strategy: match.strategy,
     detail: match.via,
-    selectable: match.supported,
+    selectable: true,
     warning,
   };
 }
