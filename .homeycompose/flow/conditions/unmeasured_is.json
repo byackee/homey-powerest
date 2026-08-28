@@ -1,0 +1,16 @@
+{
+  "id": "unmeasured_is",
+  "title": {
+    "en": "Unmeasured share !{{is|is not}} above",
+    "fr": "La part non mesurée !{{est|n'est pas}} supérieure à",
+    "nl": "Niet-gemeten aandeel !{{is|is niet}} hoger dan"
+  },
+  "titleFormatted": {
+    "en": "Unmeasured share !{{is|is not}} above [[percent]] %",
+    "fr": "La part non mesurée !{{est|n'est pas}} supérieure à [[percent]] %",
+    "nl": "Niet-gemeten aandeel !{{is|is niet}} hoger dan [[percent]] %"
+  },
+  "args": [
+    { "name": "percent", "type": "number", "min": 0, "max": 100, "step": 1 }
+  ]
+}

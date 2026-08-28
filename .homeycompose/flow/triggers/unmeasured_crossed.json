@@ -1,0 +1,25 @@
+{
+  "id": "unmeasured_crossed",
+  "title": {
+    "en": "Unmeasured share rises above",
+    "fr": "La part non mesurée dépasse",
+    "nl": "Niet-gemeten aandeel stijgt boven"
+  },
+  "titleFormatted": {
+    "en": "Unmeasured share rises above [[percent]] %",
+    "fr": "La part non mesurée dépasse [[percent]] %",
+    "nl": "Niet-gemeten aandeel stijgt boven [[percent]] %"
+  },
+  "hint": {
+    "en": "What the main meter sees and no device explains. A jump usually means an appliance nothing is estimating.",
+    "fr": "Ce que le compteur voit et qu'aucun appareil n'explique. Un bond signale en général un appareil que rien n'estime.",
+    "nl": "Wat de hoofdmeter ziet en geen apparaat verklaart."
+  },
+  "args": [
+    { "name": "percent", "type": "number", "min": 0, "max": 100, "step": 1, "placeholder": { "en": "Percent", "fr": "Pourcent", "nl": "Procent" } }
+  ],
+  "tokens": [
+    { "name": "unmeasured", "type": "number", "title": { "en": "Unmeasured watts", "fr": "Watts non mesurés", "nl": "Niet-gemeten watt" } },
+    { "name": "percent", "type": "number", "title": { "en": "Share", "fr": "Part", "nl": "Aandeel" } }
+  ]
+}

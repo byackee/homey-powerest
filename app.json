@@ -81,8 +81,7 @@
     "xlarge": "/assets/images/xlarge.png"
   },
   "author": {
-    "name": "Vincent",
-    "email": "admin@dataweavelabs.com"
+    "name": "DataWeave Labs"
   },
   "api": {
     "getStatus": {
@@ -116,7 +115,209 @@
       "role": "owner"
     }
   },
+  "source": "https://github.com/byackee/homey-powerest",
+  "bugs": {
+    "url": "https://github.com/byackee/homey-powerest/issues"
+  },
+  "support": "https://github.com/byackee/homey-powerest/issues",
   "esm": true,
+  "flow": {
+    "triggers": [
+      {
+        "id": "home_power_crossed",
+        "title": {
+          "en": "Estimated home power rises above",
+          "fr": "La puissance estimée du logement dépasse",
+          "nl": "Geschat vermogen van de woning stijgt boven"
+        },
+        "titleFormatted": {
+          "en": "Estimated home power rises above [[watts]] W",
+          "fr": "La puissance estimée du logement dépasse [[watts]] W",
+          "nl": "Geschat vermogen stijgt boven [[watts]] W"
+        },
+        "hint": {
+          "en": "Fires at the moment the threshold is crossed, not while it stays above.",
+          "fr": "Se déclenche au moment du franchissement, pas tant que la valeur reste au-dessus.",
+          "nl": "Wordt geactiveerd op het moment van overschrijding."
+        },
+        "args": [
+          {
+            "name": "watts",
+            "type": "number",
+            "min": 0,
+            "max": 30000,
+            "step": 10,
+            "placeholder": {
+              "en": "Watts",
+              "fr": "Watts",
+              "nl": "Watt"
+            }
+          }
+        ],
+        "tokens": [
+          {
+            "name": "total",
+            "type": "number",
+            "title": {
+              "en": "Total",
+              "fr": "Total",
+              "nl": "Totaal"
+            }
+          },
+          {
+            "name": "measured",
+            "type": "number",
+            "title": {
+              "en": "Identified",
+              "fr": "Identifiés",
+              "nl": "Geïdentificeerd"
+            }
+          },
+          {
+            "name": "unmeasured",
+            "type": "number",
+            "title": {
+              "en": "Unmeasured",
+              "fr": "Non mesurés",
+              "nl": "Niet gemeten"
+            }
+          }
+        ]
+      },
+      {
+        "id": "unmeasured_crossed",
+        "title": {
+          "en": "Unmeasured share rises above",
+          "fr": "La part non mesurée dépasse",
+          "nl": "Niet-gemeten aandeel stijgt boven"
+        },
+        "titleFormatted": {
+          "en": "Unmeasured share rises above [[percent]] %",
+          "fr": "La part non mesurée dépasse [[percent]] %",
+          "nl": "Niet-gemeten aandeel stijgt boven [[percent]] %"
+        },
+        "hint": {
+          "en": "What the main meter sees and no device explains. A jump usually means an appliance nothing is estimating.",
+          "fr": "Ce que le compteur voit et qu'aucun appareil n'explique. Un bond signale en général un appareil que rien n'estime.",
+          "nl": "Wat de hoofdmeter ziet en geen apparaat verklaart."
+        },
+        "args": [
+          {
+            "name": "percent",
+            "type": "number",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "placeholder": {
+              "en": "Percent",
+              "fr": "Pourcent",
+              "nl": "Procent"
+            }
+          }
+        ],
+        "tokens": [
+          {
+            "name": "unmeasured",
+            "type": "number",
+            "title": {
+              "en": "Unmeasured watts",
+              "fr": "Watts non mesurés",
+              "nl": "Niet-gemeten watt"
+            }
+          },
+          {
+            "name": "percent",
+            "type": "number",
+            "title": {
+              "en": "Share",
+              "fr": "Part",
+              "nl": "Aandeel"
+            }
+          }
+        ]
+      }
+    ],
+    "conditions": [
+      {
+        "id": "home_power_is",
+        "title": {
+          "en": "Estimated home power !{{is|is not}} above",
+          "fr": "La puissance estimée du logement !{{est|n'est pas}} supérieure à",
+          "nl": "Geschat vermogen !{{is|is niet}} hoger dan"
+        },
+        "titleFormatted": {
+          "en": "Estimated home power !{{is|is not}} above [[watts]] W",
+          "fr": "La puissance estimée du logement !{{est|n'est pas}} supérieure à [[watts]] W",
+          "nl": "Geschat vermogen !{{is|is niet}} hoger dan [[watts]] W"
+        },
+        "args": [
+          {
+            "name": "watts",
+            "type": "number",
+            "min": 0,
+            "max": 30000,
+            "step": 10
+          }
+        ]
+      },
+      {
+        "id": "unmeasured_is",
+        "title": {
+          "en": "Unmeasured share !{{is|is not}} above",
+          "fr": "La part non mesurée !{{est|n'est pas}} supérieure à",
+          "nl": "Niet-gemeten aandeel !{{is|is niet}} hoger dan"
+        },
+        "titleFormatted": {
+          "en": "Unmeasured share !{{is|is not}} above [[percent]] %",
+          "fr": "La part non mesurée !{{est|n'est pas}} supérieure à [[percent]] %",
+          "nl": "Niet-gemeten aandeel !{{is|is niet}} hoger dan [[percent]] %"
+        },
+        "args": [
+          {
+            "name": "percent",
+            "type": "number",
+            "min": 0,
+            "max": 100,
+            "step": 1
+          }
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "set_manual_power",
+        "title": {
+          "en": "Set the manual power of",
+          "fr": "Régler la puissance manuelle de",
+          "nl": "Stel het handmatige vermogen in van"
+        },
+        "titleFormatted": {
+          "en": "Set the manual power to [[watts]] W",
+          "fr": "Régler la puissance manuelle à [[watts]] W",
+          "nl": "Stel het handmatige vermogen in op [[watts]] W"
+        },
+        "hint": {
+          "en": "Only affects devices set to a fixed value. Useful for an appliance whose draw depends on a programme.",
+          "fr": "N'agit que sur les appareils réglés en valeur fixe. Utile pour un appareil dont la consommation dépend d'un programme.",
+          "nl": "Werkt alleen op apparaten met een vaste waarde."
+        },
+        "args": [
+          {
+            "name": "device",
+            "type": "device",
+            "filter": "driver_id=estimator"
+          },
+          {
+            "name": "watts",
+            "type": "number",
+            "min": 0,
+            "max": 30000,
+            "step": 1
+          }
+        ]
+      }
+    ]
+  },
   "drivers": [
     {
       "name": {

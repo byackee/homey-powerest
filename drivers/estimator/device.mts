@@ -23,7 +23,7 @@ import Homey from 'homey';
 import type PowerEstimateApp from '../../app.mjs';
 import type { Subscription, CapValue } from '../../runtime/hub.mjs';
 import type { LoadedProfile } from '../../runtime/library.mjs';
-import { accumulate, restoreMeter, roundKwh, type MeterState } from '../../lib/energy.mjs';
+import { accumulate, restoreMeter, roundKwh, shouldPersist, type MeterState } from '../../lib/energy.mjs';
 import { computePower } from '../../lib/strategies.mjs';
 import { toLightState, type HomeyLightCapabilities } from '../../lib/units.mjs';
 import { ProfileError } from '../../lib/types.mjs';
@@ -78,6 +78,8 @@ export default class EstimatorDevice extends Homey.Device {
    * ne règle que l'arithmétique.
    */
   private lostCapabilities: string[] = [];
+  /** Dernier cumul réellement écrit dans le `store`, pour ne réécrire que ce qui a bougé. */
+  private persistedKwh = 0;
 
   private get app(): PowerEstimateApp {
     return this.homey.app as PowerEstimateApp;
@@ -99,6 +101,7 @@ export default class EstimatorDevice extends Homey.Device {
     }
 
     this.meter = restoreMeter(this.getStoreValue('meter'), Date.now());
+    this.persistedKwh = this.meter.kwh;
 
     this.ticker = this.homey.setInterval(() => { void this.tick(); }, TICK_MS);
     await this.loadProfile();
@@ -106,6 +109,9 @@ export default class EstimatorDevice extends Homey.Device {
 
   public override async onUninit(): Promise<void> {
     this.teardown();
+    // L'arrêt est le seul moment où l'on écrit sans condition : c'est là qu'on sauve le dernier
+    // watt-heure que le filtre de persistance retenait encore.
+    await this.persistMeter();
   }
 
   public override async onDeleted(): Promise<void> {
@@ -280,6 +286,16 @@ export default class EstimatorDevice extends Homey.Device {
     }
   }
 
+  /** Écrit le compteur et retient ce qui a été écrit. */
+  private async persistMeter(): Promise<void> {
+    try {
+      await this.setStoreValue('meter', this.meter);
+      this.persistedKwh = this.meter.kwh;
+    } catch (err) {
+      this.app.note('meter!', `persistance : ${describe(err)}`);
+    }
+  }
+
   /** Recopie une valeur de la source sur la capability correspondante du compagnon. */
   private async reflect(capability: string, value: CapValue | null): Promise<void> {
     if (!this.hasCapability(capability) || value === null) return;
@@ -359,7 +375,9 @@ export default class EstimatorDevice extends Homey.Device {
     // fois par minute au plus, quel que soit le nombre d'appareils virtuels.
     await this.app.getHub().refresh().catch(() => undefined);
     await this.checkExclusion();
-    await this.setStoreValue('meter', this.meter).catch((err: unknown) => this.error('persistance', err));
+    // On n'écrit que si le cumul a bougé d'au moins un watt-heure. Voir `PERSIST_STEP_KWH` : sans
+    // ce filtre, une veille de 0,3 W écrivait soixante fois par heure pour ne rien changer.
+    if (shouldPersist(this.meter.kwh, this.persistedKwh)) await this.persistMeter();
   }
 
   /**

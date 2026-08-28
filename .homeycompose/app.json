@@ -80,8 +80,7 @@
     "xlarge": "/assets/images/xlarge.png"
   },
   "author": {
-    "name": "Vincent",
-    "email": "admin@dataweavelabs.com"
+    "name": "DataWeave Labs"
   },
   "api": {
     "getStatus": {
@@ -114,5 +113,10 @@
       "path": "/usages",
       "role": "owner"
     }
-  }
+  },
+  "source": "https://github.com/byackee/homey-powerest",
+  "bugs": {
+    "url": "https://github.com/byackee/homey-powerest/issues"
+  },
+  "support": "https://github.com/byackee/homey-powerest/issues"
 }

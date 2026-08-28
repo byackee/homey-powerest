@@ -21,9 +21,19 @@ import { LibraryClient } from './runtime/library.mjs';
 import { isSelfUsageOnly, matchDevice, type LibraryIndex, type Match } from './lib/matching.mjs';
 import { SUPPORTED_STRATEGIES } from './lib/types.mjs';
 import { buildSankey, type FlowDevice, type Grouping, type SankeyModel } from './lib/sankey.mjs';
+import { crossedUp } from './lib/threshold.mjs';
 import { CATEGORIES, categorise, type Category } from './lib/categories.mjs';
 
 sourceMapSupport.install();
+
+/**
+ * Période d'évaluation des cartes Flow du logement.
+ *
+ * Ces cartes portent sur un AGRÉGAT, qui n'a pas d'événement propre : rien ne prévient quand le
+ * total change. Une minute suit le rythme du hub — qui applique de toute façon son plancher
+ * anti-quota — sans multiplier les réveils.
+ */
+const FLOW_TICK_MS = 60_000;
 
 /** Bornes du tampon de diagnostic : une app installée n'a aucun log lisible autrement. */
 const TRACE_MAX_LINES = 300;
@@ -62,6 +72,9 @@ export default class PowerEstimateApp extends Homey.App {
   private index: LibraryIndex | null = null;
   private indexError: string | null = null;
   private readonly trace: string[] = [];
+  private flowTimer: NodeJS.Timeout | null = null;
+  /** Dernier bilan publié aux cartes Flow, pour juger les franchissements. */
+  private lastFlow: { total: number; percent: number } | null = null;
 
   public override async onInit(): Promise<void> {
     this.hub = new HomeyApiHub(this.homey, {
@@ -77,13 +90,77 @@ export default class PowerEstimateApp extends Homey.App {
     // dépasseraient le budget d'`onInit`, et les appareils déjà appairés ont leur profil en cache.
     void this.warmIndex();
 
+    this.registerFlow();
     await this.hub.start();
+    this.flowTimer = this.homey.setInterval(() => { void this.evaluateFlow(); }, FLOW_TICK_MS);
     this.record('log', ['app démarrée']);
   }
 
   public override async onUninit(): Promise<void> {
+    if (this.flowTimer) { this.homey.clearInterval(this.flowTimer); this.flowTimer = null; }
     this.hub?.stop();
     this.hub = null;
+  }
+
+  /**
+   * Câble les cartes Flow du logement.
+   *
+   * Le seuil vit dans l'argument de CHAQUE Flow, que l'app ne connaît pas. Elle publie donc le
+   * couple avant/après dans l'état, et chaque Flow juge son propre franchissement — c'est ce qui
+   * permet à dix Flows d'avoir dix seuils différents sans que l'app en sache rien.
+   */
+  private registerFlow(): void {
+    const cards = this.homey.flow;
+    cards.getTriggerCard('home_power_crossed').registerRunListener(
+      (args: { watts: number }, state: { previous: number; current: number }) =>
+        crossedUp(state.previous, state.current, args.watts),
+    );
+    cards.getTriggerCard('unmeasured_crossed').registerRunListener(
+      (args: { percent: number }, state: { previous: number; current: number }) =>
+        crossedUp(state.previous, state.current, args.percent),
+    );
+    cards.getConditionCard('home_power_is').registerRunListener(
+      (args: { watts: number }) => this.energyFlow().total > args.watts,
+    );
+    cards.getConditionCard('unmeasured_is').registerRunListener((args: { percent: number }) => {
+      const flow = this.energyFlow();
+      return flow.total > 0 && (flow.unmeasured / flow.total) * 100 > args.percent;
+    });
+    cards.getActionCard('set_manual_power').registerRunListener(
+      async (args: { device: { setSettings(s: Record<string, unknown>): Promise<void> }; watts: number }) => {
+        // `power_on` et non `mode` : forcer le mode écraserait un profil mesuré choisi par
+        // l'utilisateur, alors que la carte n'annonce que de régler une puissance.
+        await args.device.setSettings({ power_on: args.watts });
+      },
+    );
+  }
+
+  /** Publie le bilan aux déclencheurs, avec la valeur précédente pour juger le franchissement. */
+  private async evaluateFlow(): Promise<void> {
+    if (!this.hub?.connected) return;
+    let flow: SankeyModel;
+    try { flow = this.energyFlow(); } catch { return; }
+
+    const percent = flow.total > 0 ? (flow.unmeasured / flow.total) * 100 : 0;
+    const previous = this.lastFlow;
+    this.lastFlow = { total: flow.total, percent };
+    // Au tout premier passage il n'y a pas d'« avant » : déclencher reviendrait à annoncer un
+    // franchissement au démarrage de l'app, à chaque mise à jour.
+    if (!previous) return;
+
+    const tokens = {
+      total: round2(flow.total),
+      measured: round2(flow.measured),
+      unmeasured: round2(flow.unmeasured),
+    };
+    await this.homey.flow.getTriggerCard('home_power_crossed')
+      .trigger(tokens, { previous: previous.total, current: flow.total })
+      .catch((err: unknown) => this.record('flow!', ['home_power_crossed', err]));
+
+    await this.homey.flow.getTriggerCard('unmeasured_crossed')
+      .trigger({ unmeasured: round2(flow.unmeasured), percent: round2(percent) },
+        { previous: previous.percent, current: percent })
+      .catch((err: unknown) => this.record('flow!', ['unmeasured_crossed', err]));
   }
 
   public getHub(): HomeyApiHub {
@@ -378,4 +455,8 @@ function safeJson(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
 }

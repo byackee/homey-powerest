@@ -80,7 +80,48 @@ export function restoreMeter(raw: unknown, now: number): MeterState {
   return initialMeter(now);
 }
 
+/**
+ * Pas de persistance du compteur, en kWh.
+ *
+ * Écrire à chaque tick coûte une écriture par minute et par appareil : sur trente-sept
+ * compagnons, cinquante mille écritures par jour sur le stockage de la Homey. Le SDK ne documente
+ * ni groupement ni temporisation de `setStoreValue`, donc on ne peut pas supposer qu'elles sont
+ * gratuites.
+ *
+ * Un watt-heure est aussi la précision d'affichage du compteur : en dessous, l'écriture ne
+ * changerait même pas ce que l'utilisateur voit. Et c'est le maximum qu'un arrêt brutal peut
+ * faire perdre — négligeable devant un compteur qui se compte en kWh.
+ */
+export const PERSIST_STEP_KWH = 0.001;
+
+/**
+ * Watt-heures par kWh — et surtout, l'UNIQUE arithmétique d'arrondi du module.
+ *
+ * `roundKwh` et `shouldPersist` doivent produire exactement le même pas, sinon le compteur
+ * affiche une valeur que le stockage ne porte pas. Ils ont divergé : l'un multipliait par 1000,
+ * l'autre divisait par 0,001, et `1.0005 * 1000` vaut 1000,5000… quand `1.0005 / 0.001` vaut
+ * 1000,4999…. Deux expressions mathématiquement égales, deux arrondis opposés. La constante est
+ * donc partagée, et les deux fonctions multiplient.
+ */
+const WH_PER_KWH = 1000;
+
+/**
+ * Faut-il réécrire le compteur ?
+ *
+ * Séparé de l'appareil pour être vérifiable : une condition trop stricte perdrait de l'énergie à
+ * chaque redémarrage, une condition trop lâche userait la mémoire — et ni l'un ni l'autre ne se
+ * voit à l'exécution.
+ */
+export function shouldPersist(current: number, persisted: number): boolean {
+  if (!Number.isFinite(current)) return false;
+  if (!Number.isFinite(persisted)) return true;
+  // On écrit quand la valeur AFFICHÉE change, au même arrondi que `roundKwh`. Comparer les écarts
+  // ne marchait pas : `1.001 - 1.000` vaut 0,0009999… et le seuil n'était jamais franchi, donc le
+  // compteur cessait d'être sauvegardé — silencieusement.
+  return Math.round(current * WH_PER_KWH) > Math.round(persisted * WH_PER_KWH);
+}
+
 /** Arrondi d'affichage du compteur : le Wh, en dessous Homey n'affiche rien de stable. */
 export function roundKwh(kwh: number): number {
-  return Math.round(kwh * 1000) / 1000;
+  return Math.round(kwh * WH_PER_KWH) / WH_PER_KWH;
 }

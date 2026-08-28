@@ -1,0 +1,16 @@
+{
+  "id": "home_power_is",
+  "title": {
+    "en": "Estimated home power !{{is|is not}} above",
+    "fr": "La puissance estimée du logement !{{est|n'est pas}} supérieure à",
+    "nl": "Geschat vermogen !{{is|is niet}} hoger dan"
+  },
+  "titleFormatted": {
+    "en": "Estimated home power !{{is|is not}} above [[watts]] W",
+    "fr": "La puissance estimée du logement !{{est|n'est pas}} supérieure à [[watts]] W",
+    "nl": "Geschat vermogen !{{is|is niet}} hoger dan [[watts]] W"
+  },
+  "args": [
+    { "name": "watts", "type": "number", "min": 0, "max": 30000, "step": 10 }
+  ]
+}

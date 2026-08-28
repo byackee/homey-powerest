@@ -1,0 +1,26 @@
+{
+  "id": "home_power_crossed",
+  "title": {
+    "en": "Estimated home power rises above",
+    "fr": "La puissance estimée du logement dépasse",
+    "nl": "Geschat vermogen van de woning stijgt boven"
+  },
+  "titleFormatted": {
+    "en": "Estimated home power rises above [[watts]] W",
+    "fr": "La puissance estimée du logement dépasse [[watts]] W",
+    "nl": "Geschat vermogen stijgt boven [[watts]] W"
+  },
+  "hint": {
+    "en": "Fires at the moment the threshold is crossed, not while it stays above.",
+    "fr": "Se déclenche au moment du franchissement, pas tant que la valeur reste au-dessus.",
+    "nl": "Wordt geactiveerd op het moment van overschrijding."
+  },
+  "args": [
+    { "name": "watts", "type": "number", "min": 0, "max": 30000, "step": 10, "placeholder": { "en": "Watts", "fr": "Watts", "nl": "Watt" } }
+  ],
+  "tokens": [
+    { "name": "total", "type": "number", "title": { "en": "Total", "fr": "Total", "nl": "Totaal" } },
+    { "name": "measured", "type": "number", "title": { "en": "Identified", "fr": "Identifiés", "nl": "Geïdentificeerd" } },
+    { "name": "unmeasured", "type": "number", "title": { "en": "Unmeasured", "fr": "Non mesurés", "nl": "Niet gemeten" } }
+  ]
+}

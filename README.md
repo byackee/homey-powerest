@@ -82,12 +82,29 @@ Stratégies gérées : `lut` (531 profils), `fixed` (134), `linear` (69) — soi
   extrapolée : `meter_power` étant monotone, une erreur d'extrapolation serait définitive. Mieux
   vaut un trou qu'un mensonge irréversible.
 
+## Cartes Flow
+
+Homey génère déjà les cartes de `measure_power` pour chaque appareil. Ce que l'app ajoute porte
+sur le **logement entier**, qui n'a aucun événement propre :
+
+- *La puissance estimée du logement dépasse X W* — au moment du franchissement, pas tant que la
+  valeur reste au-dessus.
+- *La part non mesurée dépasse X %* — un bond signale en général un appareil que rien n'estime.
+- Les deux conditions correspondantes.
+- *Régler la puissance manuelle de …* — pour un appareil dont la consommation dépend d'un
+  programme.
+
+Le seuil vit dans l'argument de chaque Flow. L'app publie le couple avant/après et chaque Flow
+juge son propre franchissement : dix Flows peuvent avoir dix seuils sans que l'app en sache rien.
+
 ## Développement
 
 ```sh
 npm ci
 npm run typecheck
-npm test                 # 54 tests, dont des tables de mesure réelles en fixture
+npm test                 # tests unitaires, dont des tables de mesure réelles en fixture
+npm run test:runtime     # tests d'exécution du hub, avec homey-api substitué
+npm run test:all
 npm run validate:publish
 ```
 

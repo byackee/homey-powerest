@@ -4,3 +4,4 @@ node_modules/
 .omc/
 *.log
 .DS_Store
+.runtimebuild/

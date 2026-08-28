@@ -1,0 +1,32 @@
+{
+  "id": "set_manual_power",
+  "title": {
+    "en": "Set the manual power of",
+    "fr": "Régler la puissance manuelle de",
+    "nl": "Stel het handmatige vermogen in van"
+  },
+  "titleFormatted": {
+    "en": "Set the manual power to [[watts]] W",
+    "fr": "Régler la puissance manuelle à [[watts]] W",
+    "nl": "Stel het handmatige vermogen in op [[watts]] W"
+  },
+  "hint": {
+    "en": "Only affects devices set to a fixed value. Useful for an appliance whose draw depends on a programme.",
+    "fr": "N'agit que sur les appareils réglés en valeur fixe. Utile pour un appareil dont la consommation dépend d'un programme.",
+    "nl": "Werkt alleen op apparaten met een vaste waarde."
+  },
+  "args": [
+    {
+      "name": "device",
+      "type": "device",
+      "filter": "driver_id=estimator"
+    },
+    {
+      "name": "watts",
+      "type": "number",
+      "min": 0,
+      "max": 30000,
+      "step": 1
+    }
+  ]
+}
