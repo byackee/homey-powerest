@@ -166,6 +166,7 @@ export default class PowerEstimateApp extends Homey.App {
     const hub = this.getHub();
     const profileTypes = this.companionDeviceTypes();
     const overrides = this.categoryOverrides();
+    const powered = this.poweredByMap();
 
     const devices = hub.listDevices()
       // Un appareil exclu de l'Énergie ne compte plus dans le total du logement : l'inclure ici
@@ -186,6 +187,7 @@ export default class PowerEstimateApp extends Homey.App {
           deviceClass: device.class,
           deviceType: (device.dataId !== null ? profileTypes.get(device.dataId) : undefined) ?? null,
           categoryOverride: overrides[device.id] ?? null,
+          poweredBy: powered[device.id] ?? null,
           approximated: measured === null,
         };
       })
@@ -239,6 +241,32 @@ export default class PowerEstimateApp extends Homey.App {
     return out;
   }
 
+  /**
+   * Qui alimente qui, par identifiant d'appareil.
+   *
+   * Un onduleur ou une multiprise mesurée ne consomme pas ce qu'il affiche : il porte la charge
+   * de ce qui est derrière. Sans cette relation, l'onduleur à 100 W et le NAS à 55 W qu'il
+   * alimente sont comptés côte à côte, et le logement paraît consommer 55 W de trop.
+   */
+  public poweredByMap(): Record<string, string> {
+    const raw = this.homey.settings.get('poweredBy') as unknown;
+    if (raw === null || typeof raw !== 'object') return {};
+    const out: Record<string, string> = {};
+    for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof value === 'string' && value !== '' && value !== id) out[id] = value;
+    }
+    return out;
+  }
+
+  /** Déclare — ou efface — l'appareil qui en alimente un autre. */
+  public setPoweredBy(deviceId: string, parentId: string | null): void {
+    const current = this.poweredByMap();
+    if (parentId === null || parentId === '' || parentId === deviceId) delete current[deviceId];
+    else current[deviceId] = parentId;
+    this.homey.settings.set('poweredBy', current);
+    this.record('flow', [`${deviceId} alimenté par ${parentId ?? 'rien'}`]);
+  }
+
   /** Fixe ou efface l'usage d'un appareil. Une chaîne vide rend la main au rangement automatique. */
   public setCategoryOverride(deviceId: string, categoryId: string | null): void {
     const current = this.categoryOverrides();
@@ -251,9 +279,10 @@ export default class PowerEstimateApp extends Homey.App {
   /** Ce que la page de réglages affiche : chaque appareil mesuré, son usage, et d'où il vient. */
   public listUsages(): Array<{
     id: string; name: string; zone: string | null; watts: number;
-    categoryId: string; categoryLabel: string; manual: boolean;
+    categoryId: string; categoryLabel: string; manual: boolean; poweredBy: string | null;
   }> {
     const overrides = this.categoryOverrides();
+    const powered = this.poweredByMap();
     const profileTypes = this.companionDeviceTypes();
     return this.getHub().listDevices()
       .filter((device) => device.watts !== null && !device.cumulative)
@@ -269,6 +298,7 @@ export default class PowerEstimateApp extends Homey.App {
           categoryId: category.id,
           categoryLabel: category.label,
           manual: override !== null,
+          poweredBy: powered[device.id] ?? null,
         };
       })
       .sort((a, b) => b.watts - a.watts);

@@ -92,6 +92,24 @@
             Homey.api('PUT', '/usages', { deviceId: d.id, categoryId: sel.value }, function () { load(); });
           });
           row.appendChild(sel);
+
+          var par = document.createElement('select');
+          var none = document.createElement('option');
+          none.value = ''; none.textContent = 'Alimenté par…';
+          par.appendChild(none);
+          data.devices.forEach(function (o) {
+            // Un appareil ne peut pas s'alimenter lui-même, et une chaîne à deux niveaux suffit :
+            // proposer un appareil déjà rattaché ouvrirait des cycles que le modèle refuse.
+            if (o.id === d.id || o.poweredBy) return;
+            var op = document.createElement('option');
+            op.value = o.id; op.textContent = o.name;
+            if (d.poweredBy === o.id) op.selected = true;
+            par.appendChild(op);
+          });
+          par.addEventListener('change', function () {
+            Homey.api('PUT', '/usages', { deviceId: d.id, poweredBy: par.value }, function () { load(); });
+          });
+          row.appendChild(par);
           box.appendChild(row);
         });
       });

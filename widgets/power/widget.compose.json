@@ -18,6 +18,47 @@
         "fr": "Choisissez l'appareil réel. Le widget retrouve son estimation tout seul.",
         "nl": "Kies het echte apparaat. De widget vindt zelf de bijbehorende schatting."
       }
+    },
+    {
+      "id": "theme",
+      "type": "dropdown",
+      "value": "auto",
+      "title": {
+        "en": "Appearance",
+        "fr": "Apparence",
+        "nl": "Weergave"
+      },
+      "hint": {
+        "en": "Auto follows the system. Force it if your Homey is in dark mode while your device is not — a widget cannot read Homey's own theme.",
+        "fr": "Auto suit le système. Forcez-le si votre Homey est en mode sombre alors que votre appareil ne l'est pas : un widget ne peut pas lire le thème de Homey.",
+        "nl": "Auto volgt het systeem. Forceer indien nodig."
+      },
+      "values": [
+        {
+          "id": "auto",
+          "label": {
+            "en": "Auto",
+            "fr": "Auto",
+            "nl": "Auto"
+          }
+        },
+        {
+          "id": "light",
+          "label": {
+            "en": "Light",
+            "fr": "Clair",
+            "nl": "Licht"
+          }
+        },
+        {
+          "id": "dark",
+          "label": {
+            "en": "Dark",
+            "fr": "Sombre",
+            "nl": "Donker"
+          }
+        }
+      ]
     }
   ],
   "height": 110,

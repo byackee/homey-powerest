@@ -59,6 +59,25 @@
         : '';
     }
 
+
+    /**
+     * Applique le thème choisi.
+     *
+     * `auto` s'en remet à `prefers-color-scheme`, qui est celui du SYSTÈME. Un widget n'a aucun
+     * moyen de lire le thème de Homey lui-même : une Homey en mode sombre sur un téléphone en
+     * mode clair donnerait donc un widget clair sur un tableau de bord sombre. D'où le forçage.
+     */
+    function applyTheme() {
+      var mode = 'auto';
+      try {
+        var st = Homey.getSettings() || {};
+        if (st.theme === 'light' || st.theme === 'dark') mode = st.theme;
+      } catch (e) { /* réglage indisponible : auto reste un défaut acceptable */ }
+      var root = document.documentElement;
+      if (mode === 'auto') root.removeAttribute('data-theme');
+      else root.setAttribute('data-theme', mode);
+    }
+
     /**
      * ⚠️ `Homey.api` rend une PROMESSE dans un widget, un rappel dans une page de réglages. Le
      * rappel n'échoue pas : il n'est jamais appelé, et le widget reste vide sans un mot.
@@ -82,6 +101,7 @@
       });
     }
 
+    applyTheme();
     load();
     setInterval(load, REFRESH_MS);
     Homey.ready();

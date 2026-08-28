@@ -89,12 +89,21 @@ export default {
   },
 
   async setUsage({ homey, body }: Request): Promise<{ ok: true }> {
-    const payload = (body ?? {}) as { deviceId?: unknown; categoryId?: unknown };
+    const payload = (body ?? {}) as { deviceId?: unknown; categoryId?: unknown; poweredBy?: unknown };
     if (typeof payload.deviceId !== 'string' || payload.deviceId === '') {
       throw new Error('deviceId manquant');
     }
-    const categoryId = typeof payload.categoryId === 'string' ? payload.categoryId : '';
-    appOf({ homey }).setCategoryOverride(payload.deviceId, categoryId === '' ? null : categoryId);
+    const app = appOf({ homey });
+    // Les deux réglages voyagent par le même point d'entrée mais restent indépendants : la page
+    // n'envoie que celui qui vient de changer, et l'autre ne doit pas être effacé au passage.
+    if (payload.categoryId !== undefined) {
+      const categoryId = typeof payload.categoryId === 'string' ? payload.categoryId : '';
+      app.setCategoryOverride(payload.deviceId, categoryId === '' ? null : categoryId);
+    }
+    if (payload.poweredBy !== undefined) {
+      const parent = typeof payload.poweredBy === 'string' ? payload.poweredBy : '';
+      app.setPoweredBy(payload.deviceId, parent === '' ? null : parent);
+    }
     return { ok: true };
   },
 };

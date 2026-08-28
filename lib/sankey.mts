@@ -38,6 +38,15 @@ export interface FlowDevice {
    * ferait tomber dans « Non mesuré », ce qui serait faux — ils sont comptés, mal.
    */
   approximated?: boolean;
+  /**
+   * Identifiant de l'appareil qui ALIMENTE celui-ci, quand il en mesure la consommation.
+   *
+   * Un onduleur, une multiprise mesurée ou un module de tableau ne consomment pas ce qu'ils
+   * affichent : ils portent la charge de ce qui est branché derrière. Sans cette relation, un
+   * onduleur à 100 W et le NAS à 55 W qu'il alimente sont comptés côte à côte, et le logement
+   * paraît consommer 55 W de plus qu'en réalité.
+   */
+  poweredBy?: string | null;
 }
 
 /** 0 = compteur, puis un niveau par regroupement, et les appareils en dernier. */
@@ -123,7 +132,9 @@ export function buildSankey(devices: readonly FlowDevice[], options: SankeyOptio
   const mains = devices.filter((d) => d.cumulative && isPositive(d.watts));
   const loads = devices.filter((d) => !d.cumulative && isPositive(d.watts));
 
-  const measured = round(loads.reduce((sum, d) => sum + d.watts, 0));
+  // La somme des charges se calcule après avoir résolu les sous-compteurs : un enfant est déjà
+  // compté dans le total de son parent, l'ajouter gonflerait le logement.
+  const measured = round(measuredTotal(loads));
   const mainsTotal = round(mains.reduce((sum, d) => sum + d.watts, 0));
   const partial = mains.length === 0;
   const total = partial ? measured : mainsTotal;
@@ -141,7 +152,26 @@ export function buildSankey(devices: readonly FlowDevice[], options: SankeyOptio
   }];
   const links: SankeyLink[] = [];
 
-  const placed = loads.map((device) => ({
+  // --- Sous-compteurs : ce qu'ils affichent CONTIENT leurs enfants -------
+  const childrenOf = new Map<string, FlowDevice[]>();
+  const byId = new Map(loads.map((d) => [d.id, d]));
+  for (const device of loads) {
+    const parent = device.poweredBy;
+    // Une relation vers un appareil absent, ou vers soi-même, est ignorée : elle produirait un
+    // cycle ou un nœud orphelin, et le diagramme ne s'en remettrait pas.
+    if (typeof parent !== 'string' || parent === '' || parent === device.id) continue;
+    if (!byId.has(parent)) continue;
+    const bucket = childrenOf.get(parent);
+    if (bucket) bucket.push(device);
+    else childrenOf.set(parent, [device]);
+  }
+  const meterIds = new Set(childrenOf.keys());
+  const childIds = new Set([...childrenOf.values()].flat().map((d) => d.id));
+
+  // Un sous-compteur ne traverse PAS le regroupement par usage : il est une branche à lui seul.
+  const standalone = loads.filter((d) => !meterIds.has(d.id) && !childIds.has(d.id));
+
+  const placed = standalone.map((device) => ({
     device,
     category: categorise(device.deviceClass, device.deviceType, device.categoryOverride),
     zoneName: device.zoneName ?? 'Sans pièce',
@@ -245,6 +275,36 @@ export function buildSankey(devices: readonly FlowDevice[], options: SankeyOptio
     }
   }
 
+  // --- Les branches de sous-comptage ---------------------------------------
+  for (const [meterId, kids] of childrenOf) {
+    const meter = byId.get(meterId) as FlowDevice;
+    const kidsSum = kids.reduce((s, k) => s + k.watts, 0);
+    const meterWatts = round(Math.max(meter.watts, kidsSum));
+    const nodeId = `meter:${meterId}`;
+
+    nodes.push({ id: nodeId, label: meter.name, watts: meterWatts, depth: 1 });
+    links.push({ from: SOURCE_ID, to: nodeId, watts: meterWatts });
+
+    for (const kid of kids) {
+      const id = `device:${kid.id}`;
+      nodes.push({
+        id, label: kid.name, watts: round(kid.watts), depth: 2,
+        categoryId: categorise(kid.deviceClass, kid.deviceType, kid.categoryOverride).id,
+      });
+      links.push({ from: nodeId, to: id, watts: round(kid.watts) });
+    }
+
+    // Ce que le sous-compteur porte sans qu'on sache quoi : ses propres pertes, et tout ce qui
+    // est branché derrière sans être déclaré. C'est la même idée que le « non mesuré » global,
+    // à l'échelle d'une branche.
+    const rest = round(meterWatts - kidsSum);
+    if (rest > minWatts) {
+      const id = `${nodeId}:rest`;
+      nodes.push({ id, label: 'Reste de la branche', watts: rest, depth: 2 });
+      links.push({ from: nodeId, to: id, watts: rest });
+    }
+  }
+
   // --- La branche non mesurée, juste après le compteur ---------------------
   if (unmeasured > 0) {
     nodes.push({ id: UNMEASURED_ID, label: 'Non mesuré', watts: unmeasured, depth: 1 });
@@ -252,6 +312,32 @@ export function buildSankey(devices: readonly FlowDevice[], options: SankeyOptio
   }
 
   return { total, measured, unmeasured, partial, nodes, links };
+}
+
+/**
+ * Somme des charges, sous-compteurs résolus.
+ *
+ * Un sous-compteur compte pour le plus grand de sa propre mesure et de la somme de ses enfants :
+ * si les enfants dépassent, c'est sa mesure qui est en retard, et rabattre le total sur elle
+ * ferait disparaître de l'énergie réellement observée.
+ */
+function measuredTotal(loads: readonly FlowDevice[]): number {
+  const byId = new Map(loads.map((d) => [d.id, d]));
+  const children = new Map<string, FlowDevice[]>();
+  for (const d of loads) {
+    const p = d.poweredBy;
+    if (typeof p !== 'string' || p === '' || p === d.id || !byId.has(p)) continue;
+    const b = children.get(p);
+    if (b) b.push(d); else children.set(p, [d]);
+  }
+  const nested = new Set([...children.values()].flat().map((d) => d.id));
+  let sum = 0;
+  for (const d of loads) {
+    if (nested.has(d.id)) continue;
+    const kids = children.get(d.id);
+    sum += kids ? Math.max(d.watts, kids.reduce((s, k) => s + k.watts, 0)) : d.watts;
+  }
+  return sum;
 }
 
 function isPositive(watts: number): boolean {

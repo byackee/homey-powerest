@@ -123,16 +123,38 @@
 
       var css = getComputedStyle(document.getElementById('viz'));
       var neutral = css.getPropertyValue('--unknown').trim();
+      var UNMEASURED = 'branch:__unmeasured__';
 
-      // Une couleur par usage, attribuée dans l'ordre de poids décroissant et jamais recyclée :
-      // la couleur suit l'entité, pas son rang à l'écran.
-      var catColor = {}, slot = 0;
-      m.nodes.forEach(function (n) {
-        if (n.depth === 1 && n.categoryId && !catColor[n.categoryId]) {
-          catColor[n.categoryId] = css.getPropertyValue(SLOTS[slot++ % SLOTS.length]).trim();
-        }
+      /**
+       * Une couleur par BRANCHE de premier niveau, quel que soit le regroupement choisi.
+       *
+       * L'attribution ne portait que sur les nœuds ayant un `categoryId` : en mode « par pièce »
+       * il n'y en a aucun, et tout le diagramme sortait gris.
+       *
+       * Un nœud plus profond hérite de sa branche SEULEMENT si elle est unique. Une pièce nourrie
+       * par l'éclairage et le multimédia n'appartient à aucun des deux : la peindre de l'un
+       * mentirait, et la neutralité est ici une information, pas un défaut.
+       */
+      var branchColor = {}, slot = 0;
+      m.nodes.filter(function (n) { return n.depth === 1; }).forEach(function (n) {
+        if (n.id === UNMEASURED) return;      // absence, pas branche : la hachure lui suffit
+        branchColor[n.id] = css.getPropertyValue(SLOTS[slot++ % SLOTS.length]).trim();
       });
-      function colorOf(n) { return (n && n.categoryId && catColor[n.categoryId]) || neutral; }
+
+      var order = m.nodes.slice().sort(function (a, b) { return a.depth - b.depth; });
+      order.forEach(function (n) {
+        if (branchColor[n.id]) return;
+        var parents = m.links.filter(function (l) { return l.to === n.id; });
+        var seenColors = {};
+        parents.forEach(function (l) {
+          var c = branchColor[l.from];
+          if (c) seenColors[c] = true;
+        });
+        var distinct = Object.keys(seenColors);
+        if (distinct.length === 1) branchColor[n.id] = distinct[0];
+      });
+
+      function colorOf(n) { return (n && branchColor[n.id]) || neutral; }
 
       var index = {};
       var nodes = m.nodes.map(function (n, i) { index[n.id] = i; return Object.assign({}, n); });
@@ -166,7 +188,7 @@
       var path = window.d3.sankeyLinkHorizontal();
       graph.links.forEach(function (l, i) {
         var from = colorOf(l.source), to = colorOf(l.target);
-        var unknown = l.target.id && l.target.id.indexOf('__unmeasured__') >= 0;
+        var unknown = l.target.id === UNMEASURED;
         var stroke;
         if (unknown) {
           stroke = 'url(#hatch)';
@@ -195,7 +217,8 @@
         svg.appendChild(rect);
 
         if (h < 9) return;
-        var t = el('text', { x: n.x1 + 7, y: n.y0 + h / 2 + 3.5, class: 'lbl' + (colorOf(n) === neutral && n.depth > 0 ? ' dim' : '') });
+        var dim = n.depth > 0 && !branchColor[n.id];
+        var t = el('text', { x: n.x1 + 7, y: n.y0 + h / 2 + 3.5, class: 'lbl' + (dim ? ' dim' : '') });
         var v = el('tspan', { class: 'v' });
         v.textContent = fmt(n.watts) + ' W';
         t.appendChild(v);
@@ -224,6 +247,25 @@
       document.getElementById('sub').textContent = String(message);
     }
 
+
+    /**
+     * Applique le thème choisi.
+     *
+     * `auto` s'en remet à `prefers-color-scheme`, qui est celui du SYSTÈME. Un widget n'a aucun
+     * moyen de lire le thème de Homey lui-même : une Homey en mode sombre sur un téléphone en
+     * mode clair donnerait donc un widget clair sur un tableau de bord sombre. D'où le forçage.
+     */
+    function applyTheme() {
+      var mode = 'auto';
+      try {
+        var st = Homey.getSettings() || {};
+        if (st.theme === 'light' || st.theme === 'dark') mode = st.theme;
+      } catch (e) { /* réglage indisponible : auto reste un défaut acceptable */ }
+      var root = document.documentElement;
+      if (mode === 'auto') root.removeAttribute('data-theme');
+      else root.setAttribute('data-theme', mode);
+    }
+
     function load() {
       // `Homey.getSettings()` est SYNCHRONE dans un widget, contrairement à `Homey.api`.
       var grouping = 'category+zone';
@@ -248,6 +290,7 @@
       if (document.getElementById('sub').textContent === '') fail('pas de réponse de l’app');
     }, 4000);
 
+    applyTheme();
     load();
     setInterval(load, 10000);
     window.addEventListener('resize', load);

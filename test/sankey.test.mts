@@ -227,3 +227,73 @@ test('la branche non mesurée reste juste après le compteur dans tous les cas',
     assert.ok(m.links.some((l) => l.from === SOURCE_ID && l.to === UNMEASURED_ID));
   }
 });
+
+/** Le cas réel : un onduleur qui n'est pas une charge mais un sous-compteur. */
+const UPS: FlowDevice[] = [
+  { id: 'linky', name: 'Linky', zoneName: 'Maison', watts: 400, cumulative: true, deviceClass: null },
+  { id: 'ups', name: 'Ellipse ECO 650', zoneName: 'Entrée', watts: 100, cumulative: false, deviceClass: 'other' },
+  { id: 'nas', name: 'NAS', zoneName: 'Entrée', watts: 55, cumulative: false, deviceClass: 'other', poweredBy: 'ups' },
+  { id: 'box', name: 'Box', zoneName: 'Entrée', watts: 15, cumulative: false, deviceClass: 'other', poweredBy: 'ups' },
+  { id: 'lamp', name: 'Lampe', zoneName: 'Salon', watts: 8, cumulative: false, deviceClass: 'light' },
+];
+
+test('un appareil derrière un sous-compteur n’est pas compté deux fois', () => {
+  const m = buildSankey(UPS);
+  // 100 (onduleur, qui CONTIENT le NAS et la box) + 8 (lampe) = 108, et non 178.
+  assert.equal(m.measured, 108);
+  assert.equal(m.unmeasured, 292);
+});
+
+test('le sous-compteur devient une branche, pas une charge', () => {
+  const m = buildSankey(UPS);
+  const meter = m.nodes.find((n) => n.id === 'meter:ups');
+  assert.ok(meter, 'aucun nœud de sous-comptage');
+  assert.equal(meter.watts, 100);
+  assert.ok(m.links.some((l) => l.from === SOURCE_ID && l.to === 'meter:ups'));
+  // Il ne doit surtout pas apparaître aussi comme un appareil rangé par usage.
+  assert.ok(!m.nodes.some((n) => n.id === 'device:ups'));
+  assert.ok(!m.links.some((l) => l.from.startsWith('cat:') && l.to === 'device:ups'));
+});
+
+test('ce que le sous-compteur porte sans qu’on sache quoi devient un reste', () => {
+  const m = buildSankey(UPS);
+  const rest = m.nodes.find((n) => n.id === 'meter:ups:rest');
+  assert.ok(rest, 'aucun reste de branche');
+  assert.equal(rest.watts, 30);           // 100 − 55 − 15
+  assert.equal(rest.label, 'Reste de la branche');
+  const out = m.links.filter((l) => l.from === 'meter:ups').reduce((s, l) => s + l.watts, 0);
+  assert.ok(Math.abs(out - 100) < 0.01, 'la branche ne redistribue pas son total');
+});
+
+test('des enfants qui dépassent la mesure du parent ne font pas disparaître d’énergie', () => {
+  // La mesure du sous-compteur peut être en retard sur celles de ses enfants.
+  const m = buildSankey([
+    { id: 'm', name: 'C', zoneName: null, watts: 100, cumulative: true, deviceClass: null },
+    { id: 'ups', name: 'Onduleur', zoneName: null, watts: 10, cumulative: false, deviceClass: 'other' },
+    { id: 'a', name: 'A', zoneName: null, watts: 40, cumulative: false, deviceClass: 'other', poweredBy: 'ups' },
+  ]);
+  const meter = m.nodes.find((n) => n.id === 'meter:ups');
+  assert.ok(meter);
+  assert.equal(meter.watts, 40, 'le total de la branche doit suivre les enfants observés');
+  assert.equal(m.measured, 40);
+  assert.ok(!m.nodes.some((n) => n.id === 'meter:ups:rest'), 'pas de reste négatif');
+});
+
+test('une relation vers un appareil absent ou vers soi-même est ignorée', () => {
+  const m = buildSankey([
+    { id: 'm', name: 'C', zoneName: null, watts: 100, cumulative: true, deviceClass: null },
+    { id: 'a', name: 'A', zoneName: 'Salon', watts: 10, cumulative: false, deviceClass: 'light', poweredBy: 'fantome' },
+    { id: 'b', name: 'B', zoneName: 'Salon', watts: 5, cumulative: false, deviceClass: 'light', poweredBy: 'b' },
+  ]);
+  assert.equal(m.measured, 15, 'les deux appareils doivent rester comptés');
+  assert.ok(!m.nodes.some((n) => n.id.startsWith('meter:')));
+});
+
+test('les sous-compteurs survivent au changement de groupement', () => {
+  for (const key of ['category+zone', 'category', 'zone']) {
+    const m = buildSankey(UPS, { grouping: GROUPINGS[key] });
+    assert.equal(m.measured, 108, `${key} : total faux`);
+    assert.ok(m.nodes.some((n) => n.id === 'meter:ups'), `${key} : branche perdue`);
+    assert.ok(Math.abs(out(m, SOURCE_ID) - m.total) < 0.01, `${key} : conservation rompue`);
+  }
+});
