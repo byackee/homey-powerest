@@ -65,7 +65,7 @@
   .link:hover { opacity: .62; }
   .node { stroke: none; }
   #tip {
-    position: absolute; pointer-events: none; opacity: 0; transition: opacity .1s;
+    position: absolute; pointer-events: none; max-width: 92%; opacity: 0; transition: opacity .1s;
     background: var(--text-primary); color: var(--surface-1);
     font-size: 11px; padding: 4px 7px; border-radius: 5px; white-space: nowrap; z-index: 5;
   }
@@ -97,15 +97,31 @@
     function fmt(w) { return w >= 100 ? Math.round(w) : w >= 10 ? w.toFixed(1) : w.toFixed(2); }
     function cut(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
-    function hover(node, text) {
-      node.addEventListener('mousemove', function (e) {
-        tip.textContent = text;
-        tip.style.opacity = 1;
-        var r = document.getElementById('viz').getBoundingClientRect();
-        tip.style.left = Math.min(e.clientX - r.left + 10, r.width - tip.offsetWidth - 6) + 'px';
-        tip.style.top = (e.clientY - r.top - 26) + 'px';
+    var pinned = false;
+
+    function place(e, text) {
+      tip.textContent = text;
+      tip.style.opacity = 1;
+      var r = document.getElementById('viz').getBoundingClientRect();
+      tip.style.left = Math.min(Math.max(4, e.clientX - r.left + 10), r.width - tip.offsetWidth - 6) + 'px';
+      tip.style.top = Math.max(2, e.clientY - r.top - 26) + 'px';
+    }
+
+    /**
+     * Survol ET clic.
+     *
+     * Le survol n'existe pas sur un tableau de bord tactile, qui est l'usage principal d'un
+     * widget : sans le clic, la valeur d'une bande serait inatteignable au doigt. Le clic épingle
+     * donc l'infobulle jusqu'au clic suivant.
+     */
+    function detail(node, text) {
+      node.addEventListener('mousemove', function (e) { if (!pinned) place(e, text); });
+      node.addEventListener('mouseleave', function () { if (!pinned) tip.style.opacity = 0; });
+      node.addEventListener('click', function (e) {
+        e.stopPropagation();
+        pinned = true;
+        place(e, text);
       });
-      node.addEventListener('mouseleave', function () { tip.style.opacity = 0; });
     }
 
     function render(m) {
@@ -204,7 +220,7 @@
           d: path(l), class: 'link', stroke: stroke,
           'stroke-width': Math.max(1, l.width), 'stroke-opacity': unknown ? 1 : null,
         });
-        hover(p, l.source.label + ' → ' + l.target.label + ' · ' + fmt(l.value) + ' W');
+        detail(p, l.source.label + ' → ' + l.target.label + ' · ' + fmt(l.value) + ' W');
         svg.appendChild(p);
       });
 
@@ -213,18 +229,15 @@
         var color = n.depth === 0 ? css.getPropertyValue('--text-secondary').trim() : colorOf(n);
         var rect = el('rect', { x: n.x0, y: n.y0, width: n.x1 - n.x0, height: h, rx: 2, fill: color, class: 'node' });
         var pct = m.total ? Math.round(n.watts / m.total * 100) : 0;
-        hover(rect, n.label + ' · ' + fmt(n.watts) + ' W · ' + pct + '%');
+        detail(rect, n.label + '   ' + fmt(n.watts) + ' W   ·   ' + pct + ' % du logement');
         svg.appendChild(rect);
 
         if (h < 9) return;
+        // Le nom seul. Les watts encombraient chaque bande alors qu'on ne les lit qu'une à la
+        // fois ; ils passent au clic, où ils ont la place d'être complets.
         var dim = n.depth > 0 && !branchColor[n.id];
         var t = el('text', { x: n.x1 + 7, y: n.y0 + h / 2 + 3.5, class: 'lbl' + (dim ? ' dim' : '') });
-        var v = el('tspan', { class: 'v' });
-        v.textContent = fmt(n.watts) + ' W';
-        t.appendChild(v);
-        var nm = el('tspan', {});
-        nm.textContent = '  ' + cut(n.label, 26);
-        t.appendChild(nm);
+        t.textContent = cut(n.label, 30);
         svg.appendChild(t);
       });
     }
@@ -289,6 +302,12 @@
     setTimeout(function () {
       if (document.getElementById('sub').textContent === '') fail('pas de réponse de l’app');
     }, 4000);
+
+    // Un clic hors d'une bande relâche l'épinglage.
+    document.getElementById('viz').addEventListener('click', function () {
+      pinned = false;
+      tip.style.opacity = 0;
+    });
 
     applyTheme();
     load();

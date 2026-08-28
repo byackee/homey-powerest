@@ -129,7 +129,19 @@ export default class PowerEstimateApp extends Homey.App {
     const index = this.index;
     const out: Candidate[] = [];
 
+    // Les sources DÉJÀ estimées ne doivent plus être proposées : elles sont masquées et exclues
+    // de l'Énergie, mais rien ne les empêchait de réapparaître, au risque d'un second compagnon
+    // pour le même appareil. `data.id` vaut `estimate:<id de la source>`.
+    const estimated = new Set<string>();
     for (const device of hub.listDevices()) {
+      const dataId = device.dataId;
+      if (typeof dataId === 'string' && dataId.startsWith('estimate:')) {
+        estimated.add(dataId.slice('estimate:'.length));
+      }
+    }
+
+    for (const device of hub.listDevices()) {
+      if (estimated.has(device.id)) continue;
       if (device.hasPowerMeter) continue;
       // `onoff` n'est PAS exigé. Une caméra, un pont ou un routeur n'en a pas et consomme
       // pourtant en permanence : les écarter les laissait dans le « non mesuré » sans aucun
@@ -175,12 +187,24 @@ export default class PowerEstimateApp extends Homey.App {
    * portent les estimations : les écarter viderait le diagramme de tout ce que l'app apporte.
    */
   public energyFlow(grouping?: readonly Grouping[]): SankeyModel {
+    return buildSankey(this.flowDevices(), { grouping });
+  }
+
+  /**
+   * Les appareils qui entrent dans le bilan, et la seule définition qui fasse foi.
+   *
+   * Le diagramme et la page de réglages divergeaient : la page exigeait une `measure_power` là où
+   * le diagramme acceptait aussi le forfait natif de Homey. Conséquence : le NAS apparaissait dans
+   * le flux mais restait introuvable dans la page, donc impossible à ranger. Deux règles pour la
+   * même question finissent toujours par se contredire ; il n'en reste qu'une.
+   */
+  private flowDevices(): FlowDevice[] {
     const hub = this.getHub();
     const profileTypes = this.companionDeviceTypes();
     const overrides = this.categoryOverrides();
     const powered = this.poweredByMap();
 
-    const devices = hub.listDevices()
+    return hub.listDevices()
       // Un appareil exclu de l'Énergie ne compte plus dans le total du logement : l'inclure ici
       // rendrait le diagramme irréconciliable avec le compteur. Ce sont nos 30 sources masquées.
       .filter((device) => !device.energyExcluded)
@@ -204,7 +228,6 @@ export default class PowerEstimateApp extends Homey.App {
         };
       })
       .filter((device): device is FlowDevice => device !== null);
-    return buildSankey(devices, { grouping });
   }
 
   /**
@@ -288,29 +311,27 @@ export default class PowerEstimateApp extends Homey.App {
     this.record('flow', [`usage de ${deviceId} → ${categoryId ?? 'automatique'}`]);
   }
 
-  /** Ce que la page de réglages affiche : chaque appareil mesuré, son usage, et d'où il vient. */
+  /** Ce que la page de réglages affiche : chaque appareil du bilan, son usage, et d'où il vient. */
   public listUsages(): Array<{
     id: string; name: string; zone: string | null; watts: number;
     categoryId: string; categoryLabel: string; manual: boolean; poweredBy: string | null;
+    approximated: boolean;
   }> {
     const overrides = this.categoryOverrides();
-    const powered = this.poweredByMap();
-    const profileTypes = this.companionDeviceTypes();
-    return this.getHub().listDevices()
-      .filter((device) => device.watts !== null && !device.cumulative)
+    return this.flowDevices()
+      .filter((device) => !device.cumulative)
       .map((device) => {
-        const override = overrides[device.id] ?? null;
-        const type = (device.dataId !== null ? profileTypes.get(device.dataId) : undefined) ?? null;
-        const category: Category = categorise(device.class, type, override);
+        const category: Category = categorise(device.deviceClass, device.deviceType, device.categoryOverride);
         return {
           id: device.id,
           name: device.name,
           zone: device.zoneName,
-          watts: device.watts as number,
+          watts: device.watts,
           categoryId: category.id,
           categoryLabel: category.label,
-          manual: override !== null,
-          poweredBy: powered[device.id] ?? null,
+          manual: (overrides[device.id] ?? null) !== null,
+          poweredBy: device.poweredBy ?? null,
+          approximated: device.approximated === true,
         };
       })
       .sort((a, b) => b.watts - a.watts);

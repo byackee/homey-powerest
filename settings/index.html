@@ -67,7 +67,7 @@
 
           var name = document.createElement('span');
           name.className = 'u-name';
-          name.textContent = d.name + (d.zone ? ' — ' + d.zone : '');
+          name.textContent = d.name + (d.zone ? ' — ' + d.zone : '') + (d.approximated ? '  (forfait Homey)' : '');
           row.appendChild(name);
 
           var w = document.createElement('span');
