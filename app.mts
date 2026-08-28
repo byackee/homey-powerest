@@ -156,13 +156,16 @@ export default class PowerEstimateApp extends Homey.App {
   }
 
   /**
-   * Le flux d'énergie du logement : compteur général → pièces → appareils.
+   * Le flux d'énergie du logement : compteur général → usage → pièce → appareil.
    *
-   * Les appareils MASQUÉS sont conservés. Sur cette installation ils portent justement les
-   * estimations : les écarter viderait le diagramme de tout ce que l'app apporte.
+   * Les appareils MASQUÉS sont conservés. Sur cette installation ce sont précisément eux qui
+   * portent les estimations : les écarter viderait le diagramme de tout ce que l'app apporte.
    */
   public energyFlow(): SankeyModel {
-    const devices: FlowDevice[] = this.getHub().listDevices()
+    const hub = this.getHub();
+    const profileTypes = this.companionDeviceTypes();
+
+    const devices: FlowDevice[] = hub.listDevices()
       .filter((device) => device.watts !== null)
       .map((device) => ({
         id: device.id,
@@ -170,8 +173,38 @@ export default class PowerEstimateApp extends Homey.App {
         zoneName: device.zoneName,
         watts: device.watts as number,
         cumulative: device.cumulative,
+        deviceClass: device.class,
+        deviceType: (device.dataId !== null ? profileTypes.get(device.dataId) : undefined) ?? null,
       }));
     return buildSankey(devices);
+  }
+
+  /**
+   * Le `device_type` du profil mesuré, pour les appareils de cette app.
+   *
+   * Sans lui, l'imprimante réseau se rangerait parmi les capteurs de sécurité : son app la déclare
+   * `sensor`, ce qui est juste pour Homey et absurde pour un appareil qui tire quinze watts. Le
+   * profil, lui, sait que c'est une imprimante. Ce détour est nécessaire parce que le `store` d'un
+   * appareil n'est pas restitué par l'API : seul le driver peut le lire.
+   */
+  private companionDeviceTypes(): Map<string, string> {
+    const out = new Map<string, string>();
+    const index = this.index;
+    if (!index) return out;
+    try {
+      for (const device of this.homey.drivers.getDriver('estimator').getDevices()) {
+        const manufacturer = String(device.getStoreValue('manufacturer') ?? '');
+        const model = String(device.getStoreValue('model') ?? '');
+        if (manufacturer === '' || model === '') continue;
+        const entry = index.get(manufacturer, model);
+        const data = device.getData() as { id?: unknown } | null;
+        const key = typeof data?.id === 'string' ? data.id : null;
+        if (key !== null && entry?.deviceType) out.set(key, entry.deviceType);
+      }
+    } catch (err) {
+      this.record('flow!', ['lecture des profils des compagnons', err]);
+    }
+    return out;
   }
 
   /** Journal circulaire consultable depuis la page de réglages. */

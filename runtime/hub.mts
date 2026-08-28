@@ -60,6 +60,8 @@ interface ApiDevice {
   settings?: Record<string, unknown> | null;
   /** Objet Energy calculé par Homey. `cumulative` distingue un compteur général d'une charge. */
   energyObj?: { cumulative?: boolean | null } | null;
+  /** Données d'appairage. Seul identifiant qu'un driver et l'API partagent. */
+  data?: { id?: string } | null;
   driverId?: string;
   driverUri?: string;
   available: boolean;
@@ -104,6 +106,14 @@ export interface DeviceSummary extends DeviceIdentity {
    */
   cumulative: boolean;
   hidden: boolean;
+  /**
+   * `data.id` d'appairage.
+   *
+   * Le SDK n'expose pas l'identifiant Homey d'un `Device` à son propre driver, et l'API ne
+   * restitue pas le `store`. `data.id` est donc la seule clé qui permette de rapprocher ce que
+   * voit l'API de ce que sait le driver.
+   */
+  dataId: string | null;
 }
 
 /** Un abonnement vivant à une capability d'une source. */
@@ -313,6 +323,7 @@ export class HomeyApiHub extends EventEmitter {
       hasPowerMeter: capabilities.includes('measure_power') || capabilities.includes('meter_power'),
       watts: typeof power === 'number' && Number.isFinite(power) ? power : null,
       cumulative: (device.energyObj ?? {})?.cumulative === true,
+      dataId: typeof device.data?.id === 'string' ? device.data.id : null,
       hidden: (device as unknown as { hidden?: boolean }).hidden === true,
     };
   }

@@ -1,15 +1,22 @@
 /**
  * `lib/sankey.mts` — le modèle du diagramme de flux d'énergie.
  *
- * Trois niveaux : le ou les compteurs généraux, les pièces, les appareils. La grandeur qui compte
- * n'est pas ce qui est mesuré mais ce qui ne l'est pas : sur un parc réel, le Linky annonce 428 W
- * quand la somme des appareils en fait 173. Les 255 W restants — le chauffe-eau, le four, tout ce
- * qui n'est sur aucune prise pilotée — sont la première chose que l'utilisateur doit voir, et
- * c'est précisément ce qu'une liste d'appareils ne montre jamais.
+ * Quatre niveaux : compteur général → usage → pièce → appareil.
+ *
+ * Le niveau « usage » n'est pas décoratif. Il rend le graphe NON arborescent : une pièce reçoit
+ * de plusieurs usages, un usage arrose plusieurs pièces. C'est de là que naissent les croisements
+ * — et c'est aussi ce qui justifie un moteur de placement (`d3-sankey`) côté vue, là où un arbre
+ * strict n'en avait aucun besoin.
+ *
+ * La grandeur qui compte reste ce qui n'est PAS mesuré : sur un logement réel, le Linky annonce
+ * 428 W quand la somme des appareils en fait 173. Les 255 W restants sont la première chose que
+ * l'utilisateur doit voir, et aucune liste d'appareils ne la montre.
  *
  * Module pur : il ne connaît ni Homey ni le SVG, seulement des watts. C'est ce qui permet de
  * vérifier la conservation des flux par des tests plutôt qu'à l'œil sur un dessin.
  */
+
+import { categorise } from './categories.mjs';
 
 /** Un appareil tel que le diagramme a besoin de le connaître. */
 export interface FlowDevice {
@@ -17,72 +24,63 @@ export interface FlowDevice {
   name: string;
   zoneName: string | null;
   watts: number;
-  /** Vrai pour un compteur général (Linky, pince ampèremétrique) : c'est une SOURCE, pas une charge. */
+  /** Vrai pour un compteur général (Linky, pince). C'est une SOURCE, pas une charge. */
   cumulative: boolean;
+  /** Classe Homey, qui sert au rangement par usage. */
+  deviceClass?: string | null;
+  /** `device_type` du profil mesuré, quand il existe : il l'emporte sur la classe. */
+  deviceType?: string | null;
 }
+
+/** 0 = compteur, 1 = usage, 2 = pièce, 3 = appareil. */
+export type Depth = 0 | 1 | 2 | 3;
 
 export interface SankeyNode {
   id: string;
   label: string;
   watts: number;
-  /** 0 = compteur général, 1 = pièce, 2 = appareil. */
-  depth: 0 | 1 | 2;
+  depth: Depth;
+  /** Usage auquel le nœud se rattache, pour la couleur. Absent sur le compteur. */
+  categoryId?: string;
 }
 
 export interface SankeyLink {
   from: string;
   to: string;
   watts: number;
+  /** Usage porteur du flux, pour colorer le ruban. */
+  categoryId?: string;
 }
 
 export interface SankeyModel {
-  /** Total vu par les compteurs généraux, ou la somme des appareils à défaut. */
   total: number;
-  /** Somme des appareils rattachés à une pièce. */
   measured: number;
-  /** Ce que le compteur voit et qu'aucun appareil n'explique. */
   unmeasured: number;
-  /** Vrai quand aucun compteur général n'existe : le total n'est alors qu'une somme partielle. */
+  /** Vrai quand aucun compteur général n'existe : le total n'est qu'une somme partielle. */
   partial: boolean;
   nodes: SankeyNode[];
   links: SankeyLink[];
 }
 
 export interface SankeyOptions {
-  /** Nombre d'appareils détaillés par pièce ; au-delà ils sont regroupés. */
   maxPerZone?: number;
-  /** En dessous, un appareil est trop fin pour être dessiné et rejoint le regroupement. */
   minWatts?: number;
-  /**
-   * Part du total en dessous de laquelle une pièce est regroupée sous « Autres pièces ».
-   *
-   * Sans ce seuil, un logement réel produit des bandes sous le pixel : sur le parc de test, cinq
-   * pièces pèsent moins de 1 W chacune face aux 255 W non mesurés. Elles seraient dessinées, donc
-   * comptées dans la hauteur, mais illisibles — et elles voleraient la place des pièces qui
-   * comptent.
-   */
+  /** Part du total sous laquelle une pièce est regroupée. */
   minZoneShare?: number;
-  /**
-   * Part de SA PIÈCE en dessous de laquelle un appareil rejoint le regroupement.
-   *
-   * Un seuil absolu ne suffit pas : dans une pièce à 39 W, six appareils à 0,3 W produisent des
-   * bandes plus fines que les écarts qui les séparent. Le dessin devient une suite de rayures où
-   * le blanc pèse plus que la donnée. Le seuil relatif garde le détail là où il informe — une
-   * pièce dont les appareils se valent — et l'abandonne là où il n'est que du bruit.
-   */
+  /** Part de SA PIÈCE sous laquelle un appareil est regroupé. */
   minDeviceShare?: number;
 }
 
-const DEFAULTS = { maxPerZone: 6, minWatts: 0.05, minZoneShare: 0.01, minDeviceShare: 0.04 };
+const DEFAULTS = { maxPerZone: 5, minWatts: 0.05, minZoneShare: 0.01, minDeviceShare: 0.04 };
 
-/** Identifiant de la branche non mesurée. Exporté pour que la vue puisse la styler à part. */
-export const UNMEASURED_ID = 'zone:__unmeasured__';
-
-/** Identifiant du regroupement des pièces négligeables. Feuille, comme la branche non mesurée. */
+export const SOURCE_ID = 'source';
+/** Branche de ce que le compteur voit et qu'aucun appareil n'explique. Feuille. */
+export const UNMEASURED_ID = 'cat:__unmeasured__';
+/** Regroupement des pièces négligeables. Feuille. */
 export const TINY_ZONE_ID = 'zone:__tiny__';
 
-/** Les branches de niveau 1 qui n'ont volontairement aucun détail en dessous. */
-export const LEAF_BRANCHES: ReadonlySet<string> = new Set([UNMEASURED_ID, TINY_ZONE_ID]);
+/** Les nœuds qui n'ont volontairement aucun détail en dessous. */
+export const LEAF_NODES: ReadonlySet<string> = new Set([UNMEASURED_ID, TINY_ZONE_ID]);
 
 export function buildSankey(devices: readonly FlowDevice[], options: SankeyOptions = {}): SankeyModel {
   const maxPerZone = options.maxPerZone ?? DEFAULTS.maxPerZone;
@@ -95,85 +93,115 @@ export function buildSankey(devices: readonly FlowDevice[], options: SankeyOptio
 
   const measured = round(loads.reduce((sum, d) => sum + d.watts, 0));
   const mainsTotal = round(mains.reduce((sum, d) => sum + d.watts, 0));
-
-  // Sans compteur général, le diagramme reste juste mais ne prétend pas au total du logement.
   const partial = mains.length === 0;
   const total = partial ? measured : mainsTotal;
 
   // Un compteur qui verrait MOINS que la somme des appareils signalerait une estimation trop
-  // haute ou un appareil compté deux fois : on ne dessine pas de branche négative, mais on ne
-  // corrige pas non plus le total — le déséquilibre reste visible.
+  // haute ou un double comptage : on ne dessine pas de branche négative, et on ne corrige pas le
+  // total en douce — le déséquilibre reste visible.
   const unmeasured = round(Math.max(0, total - measured));
 
-  const nodes: SankeyNode[] = [];
-  const links: SankeyLink[] = [];
-
-  const sourceId = 'source';
-  nodes.push({
-    id: sourceId,
+  const nodes: SankeyNode[] = [{
+    id: SOURCE_ID,
     label: mains.length === 1 ? (mains[0] as FlowDevice).name : mains.length > 1 ? 'Compteurs' : 'Appareils mesurés',
     watts: total,
     depth: 0,
-  });
+  }];
+  const links: SankeyLink[] = [];
 
-  // Regroupement par pièce, les plus consommatrices d'abord.
-  const byZone = new Map<string, FlowDevice[]>();
-  for (const device of loads) {
-    const zone = device.zoneName ?? 'Sans pièce';
-    const bucket = byZone.get(zone);
-    if (bucket) bucket.push(device);
-    else byZone.set(zone, [device]);
+  /** Chaque appareil enrichi de son usage et de sa pièce, une seule fois. */
+  const placed = loads.map((device) => ({
+    device,
+    category: categorise(device.deviceClass, device.deviceType),
+    zoneName: device.zoneName ?? 'Sans pièce',
+  }));
+
+  // Une pièce trop petite pour être dessinée est regroupée AVANT tout le reste : sa part continue
+  // de compter dans son usage, seul son détail disparaît.
+  const zoneTotals = new Map<string, number>();
+  for (const p of placed) zoneTotals.set(p.zoneName, (zoneTotals.get(p.zoneName) ?? 0) + p.device.watts);
+  const zoneFloor = total * minZoneShare;
+  const tinyZones = new Set([...zoneTotals].filter(([, w]) => w < zoneFloor).map(([name]) => name));
+
+  const zoneKey = (name: string): string => (tinyZones.has(name) ? TINY_ZONE_ID : `zone:${name}`);
+
+  // --- Niveau 1 : les usages, du plus lourd au plus léger ------------------
+  const catTotals = new Map<string, { label: string; watts: number }>();
+  for (const p of placed) {
+    const entry = catTotals.get(p.category.id);
+    if (entry) entry.watts += p.device.watts;
+    else catTotals.set(p.category.id, { label: p.category.label, watts: p.device.watts });
+  }
+  const categories = [...catTotals].sort((a, b) => b[1].watts - a[1].watts);
+
+  for (const [id, cat] of categories) {
+    nodes.push({ id: `cat:${id}`, label: cat.label, watts: round(cat.watts), depth: 1, categoryId: id });
+    links.push({ from: SOURCE_ID, to: `cat:${id}`, watts: round(cat.watts), categoryId: id });
   }
 
-  const allZones = [...byZone.entries()]
-    .map(([name, list]) => ({ name, list, watts: round(list.reduce((s, d) => s + d.watts, 0)) }))
-    .sort((a, b) => b.watts - a.watts);
+  // --- Niveau 2 : les pièces. Une pièce reçoit de PLUSIEURS usages ---------
+  const catZone = new Map<string, { cat: string; zone: string; watts: number }>();
+  const zoneSum = new Map<string, { label: string; watts: number }>();
+  for (const p of placed) {
+    const zid = zoneKey(p.zoneName);
+    const key = `${p.category.id}|${zid}`;
+    const cz = catZone.get(key);
+    if (cz) cz.watts += p.device.watts;
+    else catZone.set(key, { cat: p.category.id, zone: zid, watts: p.device.watts });
 
-  const floor = total * minZoneShare;
-  const zones = allZones.filter((z) => z.watts >= floor);
-  const tiny = allZones.filter((z) => z.watts < floor);
+    const zs = zoneSum.get(zid);
+    const label = zid === TINY_ZONE_ID ? `${tinyZones.size} pièce${tinyZones.size > 1 ? 's' : ''} sous le seuil` : p.zoneName;
+    if (zs) zs.watts += p.device.watts;
+    else zoneSum.set(zid, { label, watts: p.device.watts });
+  }
 
-  for (const zone of zones) {
-    const zoneId = `zone:${zone.name}`;
-    nodes.push({ id: zoneId, label: zone.name, watts: zone.watts, depth: 1 });
-    links.push({ from: sourceId, to: zoneId, watts: zone.watts });
+  for (const [zid, z] of [...zoneSum].sort((a, b) => b[1].watts - a[1].watts)) {
+    nodes.push({ id: zid, label: z.label, watts: round(z.watts), depth: 2 });
+  }
+  for (const cz of catZone.values()) {
+    links.push({ from: `cat:${cz.cat}`, to: cz.zone, watts: round(cz.watts), categoryId: cz.cat });
+  }
 
-    const sorted = [...zone.list].sort((a, b) => b.watts - a.watts);
-    const deviceFloor = Math.max(minWatts, zone.watts * minDeviceShare);
-    const shown = sorted.filter((d) => d.watts >= deviceFloor).slice(0, maxPerZone);
-    const hidden = sorted.filter((d) => !shown.includes(d));
+  // --- Niveau 3 : les appareils, par pièce --------------------------------
+  const byZone = new Map<string, typeof placed>();
+  for (const p of placed) {
+    const zid = zoneKey(p.zoneName);
+    if (zid === TINY_ZONE_ID) continue;   // regroupement : pas de détail, par construction
+    const bucket = byZone.get(zid);
+    if (bucket) bucket.push(p);
+    else byZone.set(zid, [p]);
+  }
 
-    for (const device of shown) {
-      const deviceId = `device:${device.id}`;
-      nodes.push({ id: deviceId, label: device.name, watts: round(device.watts), depth: 2 });
-      links.push({ from: zoneId, to: deviceId, watts: round(device.watts) });
+  for (const [zid, list] of byZone) {
+    const zoneWatts = list.reduce((s, p) => s + p.device.watts, 0);
+    const sorted = [...list].sort((a, b) => b.device.watts - a.device.watts);
+    const floor = Math.max(minWatts, zoneWatts * minDeviceShare);
+    const shown = sorted.filter((p) => p.device.watts >= floor).slice(0, maxPerZone);
+    const hidden = sorted.filter((p) => !shown.includes(p));
+
+    for (const p of shown) {
+      const id = `device:${p.device.id}`;
+      nodes.push({ id, label: p.device.name, watts: round(p.device.watts), depth: 3, categoryId: p.category.id });
+      links.push({ from: zid, to: id, watts: round(p.device.watts), categoryId: p.category.id });
     }
-
     if (hidden.length > 0) {
-      const rest = round(hidden.reduce((s, d) => s + d.watts, 0));
+      const rest = round(hidden.reduce((s, p) => s + p.device.watts, 0));
       if (rest > 0) {
-        const restId = `${zoneId}:rest`;
-        const label = `${hidden.length} autre${hidden.length > 1 ? 's' : ''}`;
-        nodes.push({ id: restId, label, watts: rest, depth: 2 });
-        links.push({ from: zoneId, to: restId, watts: rest });
+        const id = `${zid}:rest`;
+        nodes.push({
+          id, depth: 3, watts: rest,
+          label: `${hidden.length} autre${hidden.length > 1 ? 's' : ''}`,
+          categoryId: (hidden[0] as (typeof placed)[number]).category.id,
+        });
+        links.push({ from: zid, to: id, watts: rest });
       }
     }
   }
 
-  // Les pièces négligeables deviennent une seule branche, sans détail : les détailler serait
-  // dessiner du bruit, et les omettre ferait mentir la conservation des flux.
-  if (tiny.length > 0) {
-    const watts = round(tiny.reduce((s, z) => s + z.watts, 0));
-    if (watts > 0) {
-      const id = TINY_ZONE_ID;
-      nodes.push({ id, label: `${tiny.length} pièce${tiny.length > 1 ? 's' : ''} sous le seuil`, watts, depth: 1 });
-      links.push({ from: sourceId, to: id, watts });
-    }
-  }
-
+  // --- La branche non mesurée, au niveau des usages ------------------------
   if (unmeasured > 0) {
     nodes.push({ id: UNMEASURED_ID, label: 'Non mesuré', watts: unmeasured, depth: 1 });
-    links.push({ from: sourceId, to: UNMEASURED_ID, watts: unmeasured });
+    links.push({ from: SOURCE_ID, to: UNMEASURED_ID, watts: unmeasured });
   }
 
   return { total, measured, unmeasured, partial, nodes, links };

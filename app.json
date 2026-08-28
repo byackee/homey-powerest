@@ -344,7 +344,7 @@
         "nl": "Energiestroom"
       },
       "settings": [],
-      "height": 380,
+      "height": 460,
       "transparent": false,
       "api": {
         "getFlow": {

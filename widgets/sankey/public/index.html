@@ -1,44 +1,43 @@
 <!--
-  Widget « Flux d'énergie » — compteur général → pièces → appareils.
+  Widget « Flux d'énergie » — compteur → usage → pièce → appareil.
 
-  Le nombre que ce diagramme existe pour montrer n'est pas la consommation d'une lampe : c'est
-  l'écart entre ce que le compteur voit et ce que les appareils expliquent. Sur un logement réel,
-  428 W au Linky contre 173 W identifiés. Une liste d'appareils ne montre jamais ce trou.
+  Le placement des nœuds est confié à `d3-sankey`. Ce n'était pas justifié tant que le diagramme
+  n'avait que trois niveaux : le graphe était alors un arbre strict — un appareil, une pièce, un
+  compteur — sans un seul croisement à arbitrer. Le niveau « usage » change cela : une pièce reçoit
+  de plusieurs usages, un usage arrose plusieurs pièces, et l'ordre vertical des nœuds cesse d'être
+  évident. C'est exactement le problème que d3-sankey résout.
+
+  Les bibliothèques sont EMBARQUÉES et non chargées depuis un CDN : une Homey sans accès Internet
+  doit continuer d'afficher son tableau de bord. Voir vendor/NOTICE.txt.
 -->
 <script type="text/javascript" src="/homey.js" data-origin="widget"></script>
+<script src="vendor/d3-array.min.js"></script>
+<script src="vendor/d3-path.min.js"></script>
+<script src="vendor/d3-shape.min.js"></script>
+<script src="vendor/d3-sankey.min.js"></script>
 <style>
   .viz {
     color-scheme: light;
     --surface-1: #fcfcfb;
     --text-primary: #0b0b0b;
     --text-secondary: #52514e;
-    --text-muted: #8a8983;
-    --unknown: #b9b8b1;      /* le non mesuré n'est pas une catégorie : il est neutre */
-    --hairline: #e6e5e0;
+    --unknown: #b9b8b1;
     --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
     --s4: #eda100; --s5: #e87ba4; --s6: #008300;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) .viz {
       color-scheme: dark;
-      --surface-1: #1a1a19;
-      --text-primary: #ffffff;
-      --text-secondary: #c3c2b7;
-      --text-muted: #8a8983;
+      --surface-1: #1a1a19; --text-primary: #ffffff; --text-secondary: #c3c2b7;
       --unknown: #6b6a64;
-      --hairline: #2e2e2b;
       --s1: #3987e5; --s2: #d95926; --s3: #199e70;
       --s4: #c98500; --s5: #d55181; --s6: #008300;
     }
   }
   :root[data-theme="dark"] .viz {
     color-scheme: dark;
-    --surface-1: #1a1a19;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #8a8983;
+    --surface-1: #1a1a19; --text-primary: #ffffff; --text-secondary: #c3c2b7;
     --unknown: #6b6a64;
-    --hairline: #2e2e2b;
     --s1: #3987e5; --s2: #d95926; --s3: #199e70;
     --s4: #c98500; --s5: #d55181; --s6: #008300;
   }
@@ -56,18 +55,15 @@
   .sub { font-size: 11px; color: var(--text-secondary); }
   .sub b { color: var(--text-primary); font-weight: 600; }
   svg { flex: 1; width: 100%; display: block; }
-  /* Le texte porte des jetons de texte, jamais la couleur de la série : sur fond clair, trois
-     de nos teintes validées n'atteignent pas le contraste d'un texte. Le halo le détache du ruban. */
-  .lbl { font-size: 11px; fill: var(--text-primary);
+  /* Le texte porte des jetons de texte, jamais la couleur de la série : trois de nos teintes
+     validées n'atteignent pas le contraste d'un texte sur fond clair. Le halo le détache du ruban. */
+  .lbl { font-size: 10.5px; fill: var(--text-primary);
          paint-order: stroke fill; stroke: var(--surface-1); stroke-width: 3.5px; stroke-linejoin: round; }
   .lbl .v { font-weight: 650; }
-  .sub2 { font-size: 9.5px; fill: var(--text-secondary);
-          paint-order: stroke fill; stroke: var(--surface-1); stroke-width: 3.5px; }
   .lbl.dim { fill: var(--text-secondary); }
-  .bar { stroke: none; }
-  .ribbon { opacity: .32; }
-  .ribbon:hover { opacity: .62; }
-  .empty { font-size: 12px; color: var(--text-secondary); padding: 20px 4px; }
+  .link { fill: none; opacity: .3; }
+  .link:hover { opacity: .62; }
+  .node { stroke: none; }
   #tip {
     position: absolute; pointer-events: none; opacity: 0; transition: opacity .1s;
     background: var(--text-primary); color: var(--surface-1);
@@ -88,7 +84,7 @@
   function onHomeyReady(Homey) {
     'use strict';
 
-    var W = 1000, NODE = 8, X_SRC = 4, X_ZONE = 412, X_DEV = 796, X_END = 994, GAP_ZONE = 4, GAP_DEV = 3;
+    var W = 1000, LABEL_ROOM = 206, NODE_W = 8, NODE_PAD = 7;
     var SLOTS = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6'];
     var svg = document.getElementById('svg');
     var tip = document.getElementById('tip');
@@ -112,163 +108,108 @@
       node.addEventListener('mouseleave', function () { tip.style.opacity = 0; });
     }
 
-    /** Ruban à épaisseur constante entre deux bords verticaux. */
-    function ribbon(x0, y0a, y0b, x1, y1a, y1b, fill, title) {
-      var c = (x0 + x1) / 2;
-      var d = 'M' + x0 + ',' + y0a
-            + 'C' + c + ',' + y0a + ' ' + c + ',' + y1a + ' ' + x1 + ',' + y1a
-            + 'L' + x1 + ',' + y1b
-            + 'C' + c + ',' + y1b + ' ' + c + ',' + y0b + ' ' + x0 + ',' + y0b + 'Z';
-      var p = el('path', { d: d, fill: fill, class: 'ribbon' });
-      hover(p, title);
-      return p;
-    }
-
-    /**
-     * Hachure des branches sans détail.
-     *
-     * Le non mesuré n'est pas une catégorie de plus : c'est l'absence d'information. Une texture
-     * le dit sans couleur, ce qui le distingue aussi pour qui ne perçoit pas les teintes.
-     */
-    function hatch(color) {
-      var defs = el('defs', {});
-      var pat = el('pattern', { id: 'hatch', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' });
-      pat.appendChild(el('rect', { width: 6, height: 6, fill: color, 'fill-opacity': .18 }));
-      pat.appendChild(el('line', { x1: 0, y1: 0, x2: 0, y2: 6, stroke: color, 'stroke-width': 2.4, 'stroke-opacity': .5 }));
-      defs.appendChild(pat);
-      return defs;
-    }
-
-    /**
-     * Un nœud est une BARRE FINE, et son étiquette se pose à côté, par-dessus le ruban.
-     *
-     * C'est la géométrie qui produit l'impression de flux : les rubans occupent presque toute la
-     * largeur et le regard suit la matière, au lieu de buter sur des colonnes de rectangles. Une
-     * première version avait fait l'inverse — des boîtes larges portant leur texte — et les rubans
-     * n'étaient plus que des raccords entre des blocs.
-     *
-     * L'étiquette met la VALEUR avant le nom : c'est la grandeur qu'on compare d'une bande à
-     * l'autre, et l'aligner à gauche la rend lisible en colonne.
-     */
-    function label(x, y, name, watts, pct, dim, twoLines) {
-      var g = el('g', {});
-      var t = el('text', { x: x, y: y + (twoLines ? -2 : 3.5), class: 'lbl' + (dim ? ' dim' : '') });
-      var v = el('tspan', { class: 'v' });
-      v.textContent = fmt(watts) + ' W';
-      t.appendChild(v);
-      var n = el('tspan', {});
-      n.textContent = '  ' + name;
-      t.appendChild(n);
-      g.appendChild(t);
-      if (twoLines && pct !== null) {
-        var p = el('text', { x: x, y: y + 11, class: 'sub2' });
-        p.textContent = pct + ' %';
-        g.appendChild(p);
-      }
-      return g;
-    }
-
-    /** Dégradé d'un ruban : il part de la couleur de la source et arrive à celle de la cible. */
-    function gradient(id, from, to) {
-      var g = el('linearGradient', { id: id, x1: '0', x2: '1', y1: '0', y2: '0' });
-      g.appendChild(el('stop', { offset: '0', 'stop-color': from }));
-      g.appendChild(el('stop', { offset: '1', 'stop-color': to }));
-      return g;
-    }
-
     function render(m) {
       svg.innerHTML = '';
-      var H = Math.max(160, svg.clientHeight || 300);
+      var H = Math.max(160, svg.clientHeight || 320);
       svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-
-      var zones = m.nodes.filter(function (n) { return n.depth === 1; });
-      if (!m.total || !zones.length) {
+      if (!m.total || m.nodes.length < 2) {
         document.getElementById('sub').textContent = 'Aucun appareil ne mesure de puissance.';
+        return;
+      }
+      if (!window.d3 || !window.d3.sankey) {
+        document.getElementById('sub').textContent = 'Bibliothèque de tracé absente';
         return;
       }
 
       var css = getComputedStyle(document.getElementById('viz'));
-      var defs = hatch(css.getPropertyValue('--unknown').trim());
-      svg.appendChild(defs);
+      var neutral = css.getPropertyValue('--unknown').trim();
 
-      var usable = H - 6 - (zones.length - 1) * GAP_ZONE;
-      var scale = usable / m.total;
-      var srcColor = css.getPropertyValue('--text-secondary').trim();
-
-      var slot = 0, ySrc = 3, yZone = 3, gid = 0;
-
-      zones.forEach(function (z) {
-        var isUnknown = z.id.indexOf('__unmeasured__') >= 0;
-        var isTiny = z.id.indexOf('__tiny__') >= 0;
-        var leaf = !m.links.some(function (l) { return l.from === z.id; });
-        var color = (isUnknown || isTiny)
-          ? css.getPropertyValue('--unknown').trim()
-          : css.getPropertyValue(SLOTS[slot++ % SLOTS.length]).trim();
-
-        var h = Math.max(1, z.watts * scale);
-        var pct = m.total ? Math.round(z.watts / m.total * 100) : 0;
-        var title = z.label + ' · ' + fmt(z.watts) + ' W · ' + pct + '%';
-
-        var gA = 'g' + (gid++);
-        defs.appendChild(gradient(gA, srcColor, color));
-        svg.appendChild(ribbon(X_SRC + NODE, ySrc, ySrc + h, X_ZONE, yZone, yZone + h, 'url(#' + gA + ')', title));
-
-        var bar = el('rect', { x: X_ZONE, y: yZone, width: NODE, height: h, rx: 2, fill: color, class: 'bar' });
-        hover(bar, title);
-        svg.appendChild(bar);
-
-        if (leaf) {
-          // Sans détail en dessous, la branche s'étend jusqu'au bord, hachurée : le vide ferait
-          // croire à un dessin manquant, la hachure dit qu'il manque une donnée.
-          var tail = el('rect', {
-            x: X_ZONE + NODE, y: yZone, width: X_END - (X_ZONE + NODE), height: h,
-            rx: 2, fill: 'url(#hatch)',
-          });
-          hover(tail, title);
-          svg.appendChild(tail);
+      // Une couleur par usage, attribuée dans l'ordre de poids décroissant et jamais recyclée :
+      // la couleur suit l'entité, pas son rang à l'écran.
+      var catColor = {}, slot = 0;
+      m.nodes.forEach(function (n) {
+        if (n.depth === 1 && n.categoryId && !catColor[n.categoryId]) {
+          catColor[n.categoryId] = css.getPropertyValue(SLOTS[slot++ % SLOTS.length]).trim();
         }
-        if (h >= 10) svg.appendChild(label(X_ZONE + NODE + 8, yZone + h / 2, z.label, z.watts, pct, isUnknown || isTiny, h >= 24));
+      });
+      function colorOf(n) { return (n && n.categoryId && catColor[n.categoryId]) || neutral; }
 
-        var kids = m.links.filter(function (l) { return l.from === z.id; });
-        if (kids.length) {
-          var inner = Math.max(1, h - (kids.length - 1) * GAP_DEV);
-          var dscale = inner / z.watts;
-          var yz = yZone, yd = yZone;
-          kids.forEach(function (l) {
-            var node = m.nodes.filter(function (n) { return n.id === l.to; })[0];
-            var dh = Math.max(1, l.watts * dscale);
-            var dpct = z.watts ? Math.round(l.watts / z.watts * 100) : 0;
-            var dtitle = (node ? node.label : '?') + ' · ' + fmt(l.watts) + ' W · ' + dpct + '% de ' + z.label;
-
-            var gB = 'g' + (gid++);
-            defs.appendChild(gradient(gB, color, color));
-            svg.appendChild(ribbon(X_ZONE + NODE, yz, yz + dh, X_DEV, yd, yd + dh, 'url(#' + gB + ')', dtitle));
-
-            var db = el('rect', { x: X_DEV, y: yd, width: NODE, height: dh, rx: 2, fill: color, class: 'bar' });
-            hover(db, dtitle);
-            svg.appendChild(db);
-            if (dh >= 10 && node) {
-              svg.appendChild(label(X_DEV + NODE + 8, yd + dh / 2, cut(node.label, 24), l.watts, dpct, false, dh >= 24));
-            }
-            yz += dh + GAP_DEV; yd += dh + GAP_DEV;
-          });
-        }
-
-        ySrc += h + GAP_ZONE;
-        yZone += h + GAP_ZONE;
+      var index = {};
+      var nodes = m.nodes.map(function (n, i) { index[n.id] = i; return Object.assign({}, n); });
+      var links = m.links.map(function (l) {
+        return { source: index[l.from], target: index[l.to], value: Math.max(l.watts, 0.001), categoryId: l.categoryId };
       });
 
-      // Le compteur, dessiné en dernier pour couvrir les départs de rubans.
-      svg.appendChild(el('rect', {
-        x: X_SRC, y: 3, width: NODE, height: Math.max(1, ySrc - 3 - GAP_ZONE),
-        rx: 2, fill: srcColor, class: 'bar',
-      }));
+      var graph;
+      try {
+        graph = window.d3.sankey()
+          .nodeWidth(NODE_W)
+          .nodePadding(NODE_PAD)
+          // La marge de droite n'est pas décorative : c'est la place des étiquettes de la dernière
+          // colonne, qui sinon déborderaient hors du cadre.
+          .extent([[2, 4], [W - LABEL_ROOM, H - 4]])
+          ({ nodes: nodes, links: links });
+      } catch (e) {
+        document.getElementById('sub').textContent = 'Tracé impossible : ' + (e && e.message);
+        return;
+      }
+
+      var defs = el('defs', {});
+      // Hachure réservée au non mesuré : ce n'est pas un usage de plus, c'est une absence. La
+      // texture le dit aussi à qui ne distingue pas les couleurs.
+      var pat = el('pattern', { id: 'hatch', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' });
+      pat.appendChild(el('rect', { width: 6, height: 6, fill: neutral, 'fill-opacity': .25 }));
+      pat.appendChild(el('line', { x1: 0, y1: 0, x2: 0, y2: 6, stroke: neutral, 'stroke-width': 2.4 }));
+      defs.appendChild(pat);
+      svg.appendChild(defs);
+
+      var path = window.d3.sankeyLinkHorizontal();
+      graph.links.forEach(function (l, i) {
+        var from = colorOf(l.source), to = colorOf(l.target);
+        var unknown = l.target.id && l.target.id.indexOf('__unmeasured__') >= 0;
+        var stroke;
+        if (unknown) {
+          stroke = 'url(#hatch)';
+        } else {
+          var gid = 'lg' + i;
+          var g = el('linearGradient', { id: gid, gradientUnits: 'userSpaceOnUse', x1: l.source.x1, x2: l.target.x0 });
+          g.appendChild(el('stop', { offset: '0', 'stop-color': from }));
+          g.appendChild(el('stop', { offset: '1', 'stop-color': to }));
+          defs.appendChild(g);
+          stroke = 'url(#' + gid + ')';
+        }
+        var p = el('path', {
+          d: path(l), class: 'link', stroke: stroke,
+          'stroke-width': Math.max(1, l.width), 'stroke-opacity': unknown ? 1 : null,
+        });
+        hover(p, l.source.label + ' → ' + l.target.label + ' · ' + fmt(l.value) + ' W');
+        svg.appendChild(p);
+      });
+
+      graph.nodes.forEach(function (n) {
+        var h = Math.max(1, n.y1 - n.y0);
+        var color = n.depth === 0 ? css.getPropertyValue('--text-secondary').trim() : colorOf(n);
+        var rect = el('rect', { x: n.x0, y: n.y0, width: n.x1 - n.x0, height: h, rx: 2, fill: color, class: 'node' });
+        var pct = m.total ? Math.round(n.watts / m.total * 100) : 0;
+        hover(rect, n.label + ' · ' + fmt(n.watts) + ' W · ' + pct + '%');
+        svg.appendChild(rect);
+
+        if (h < 9) return;
+        var t = el('text', { x: n.x1 + 7, y: n.y0 + h / 2 + 3.5, class: 'lbl' + (colorOf(n) === neutral && n.depth > 0 ? ' dim' : '') });
+        var v = el('tspan', { class: 'v' });
+        v.textContent = fmt(n.watts) + ' W';
+        t.appendChild(v);
+        var nm = el('tspan', {});
+        nm.textContent = '  ' + cut(n.label, 26);
+        t.appendChild(nm);
+        svg.appendChild(t);
+      });
     }
 
     /**
      * ⚠️ Dans un WIDGET, `Homey.api` rend une PROMESSE — contrairement à une page de réglages, où
-     * elle prend un rappel en quatrième argument. Passer un rappel ici ne produit aucune erreur :
-     * il n'est simplement jamais appelé, et le widget reste vide. C'est ce qui est arrivé.
+     * elle prend un rappel en quatrième argument. Passer un rappel ne produit aucune erreur : il
+     * n'est simplement jamais appelé, et le widget reste vide.
      */
     function call(method, path) {
       var r;

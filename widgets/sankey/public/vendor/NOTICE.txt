@@ -1,0 +1,10 @@
+Bibliothèques embarquées pour le tracé du diagramme de flux.
+
+  d3-array  3.2.4   ISC        Copyright Mike Bostock
+  d3-path   3.1.0   ISC        Copyright Mike Bostock
+  d3-shape  3.2.0   ISC        Copyright Mike Bostock
+  d3-sankey 0.12.3  BSD-3      Copyright 2015 Mike Bostock
+
+Embarquées et non chargées depuis un CDN : une Homey sans accès Internet doit
+continuer d'afficher son tableau de bord, et un widget dépendant d'un domaine
+tiers casserait le jour où ce domaine bouge.
