@@ -56,14 +56,14 @@
   .sub { font-size: 11px; color: var(--text-secondary); }
   .sub b { color: var(--text-primary); font-weight: 600; }
   svg { flex: 1; width: 100%; display: block; }
-  .lbl { font-size: 10px; fill: var(--text-primary);
-         paint-order: stroke fill; stroke: var(--surface-1); stroke-width: 3px; stroke-linejoin: round; }
-  .lbl.dim { fill: var(--text-secondary); }
-  .val { font-size: 9.5px; fill: var(--text-secondary);
-         paint-order: stroke fill; stroke: var(--surface-1); stroke-width: 3px; }
-  .band { stroke: var(--surface-1); stroke-width: 2; }
-  .ribbon { opacity: .34; }
-  .ribbon:hover, .band:hover { opacity: .72; }
+  .nname { font-size: 11px; font-weight: 600; fill: var(--text-primary); }
+  .nval  { font-size: 10px; fill: var(--text-secondary); }
+  .nname.dim, .nval.dim { fill: var(--text-secondary); }
+  .box { stroke: var(--surface-1); stroke-width: 1.5; }
+  .edge { stroke: none; }
+  .ribbon { opacity: .3; }
+  .ribbon:hover { opacity: .6; }
+  .box:hover { filter: brightness(.97); }
   .empty { font-size: 12px; color: var(--text-secondary); padding: 20px 4px; }
   #tip {
     position: absolute; pointer-events: none; opacity: 0; transition: opacity .1s;
@@ -85,7 +85,7 @@
   function onHomeyReady(Homey) {
     'use strict';
 
-    var W = 1000, NODE = 9, X_SRC = 3, X_ZONE = 236, X_DEV = 520, X_END = 992, GAP_ZONE = 3, GAP_DEV = 2;
+    var W = 1000, X_SRC = 3, W_SRC = 128, X_ZONE = 302, W_ZONE = 208, X_DEV = 698, X_END = 994, GAP_ZONE = 4, GAP_DEV = 3;
     var SLOTS = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6'];
     var svg = document.getElementById('svg');
     var tip = document.getElementById('tip');
@@ -136,6 +136,48 @@
       return defs;
     }
 
+    /**
+     * Un nœud est une BOÎTE qui porte son nom et sa valeur, comme dans les cartes Sankey de Home
+     * Assistant — et non une barre fine avec l'étiquette à côté.
+     *
+     * Une différence assumée avec le look d'origine : là-bas le texte est blanc sur un aplat de
+     * couleur. Trois teintes de notre palette validée n'ont pas le contraste nécessaire pour ça
+     * (aqua 2,7:1, jaune 2,1:1, magenta 2,6:1 sur fond clair). La boîte est donc un aplat CLAIR de
+     * la teinte avec un liseré plein : même lecture, même identité, sans texte illisible.
+     */
+    function nodeBox(x, y, w, h, color, name, watts, pct, dim, hatched) {
+      var g = el('g', {});
+      g.appendChild(el('rect', {
+        x: x, y: y, width: w, height: h, rx: 4,
+        fill: hatched ? 'url(#hatch)' : color, 'fill-opacity': hatched ? 1 : .17, class: 'box',
+      }));
+      // Liseré : il porte la couleur pleine, donc l'identité, sans être sous le texte.
+      g.appendChild(el('rect', { x: x, y: y, width: 3.5, height: h, rx: 1.75, fill: color, class: 'edge' }));
+
+      var pad = 9;
+      if (h >= 23) {
+        var t1 = el('text', { x: x + pad, y: y + h / 2 - 3, class: 'nname' + (dim ? ' dim' : '') });
+        t1.textContent = cut(name, Math.floor((w - pad * 2) / 6));
+        g.appendChild(t1);
+        var t2 = el('text', { x: x + pad, y: y + h / 2 + 10, class: 'nval' });
+        t2.textContent = fmt(watts) + ' W' + (pct !== null ? '  ·  ' + pct + '%' : '');
+        g.appendChild(t2);
+      } else if (h >= 10) {
+        var t = el('text', { x: x + pad, y: y + h / 2 + 3.5, class: 'nname' + (dim ? ' dim' : '') });
+        t.textContent = cut(name, Math.floor((w - pad * 2) / 6.4)) + '   ' + fmt(watts) + ' W';
+        g.appendChild(t);
+      }
+      return g;
+    }
+
+    /** Dégradé d'un ruban : il part de la couleur de la source et arrive à celle de la cible. */
+    function gradient(id, from, to) {
+      var g = el('linearGradient', { id: id, x1: '0', x2: '1', y1: '0', y2: '0' });
+      g.appendChild(el('stop', { offset: '0', 'stop-color': from }));
+      g.appendChild(el('stop', { offset: '1', 'stop-color': to }));
+      return g;
+    }
+
     function render(m) {
       svg.innerHTML = '';
       var H = Math.max(160, svg.clientHeight || 300);
@@ -147,17 +189,21 @@
         return;
       }
 
+      var css = getComputedStyle(document.getElementById('viz'));
+      var defs = hatch(css.getPropertyValue('--unknown').trim());
+      svg.appendChild(defs);
+
       var usable = H - 6 - (zones.length - 1) * GAP_ZONE;
       var scale = usable / m.total;
+      var srcColor = css.getPropertyValue('--text-secondary').trim();
 
-      var css = getComputedStyle(document.getElementById('viz'));
-      svg.appendChild(hatch(css.getPropertyValue('--unknown').trim()));
-      var slot = 0;
-      var ySrc = 3, yZone = 3;
+      var slot = 0, ySrc = 3, yZone = 3, gid = 0;
+      var srcNode = m.nodes.filter(function (n) { return n.depth === 0; })[0];
 
       zones.forEach(function (z) {
         var isUnknown = z.id.indexOf('__unmeasured__') >= 0;
         var isTiny = z.id.indexOf('__tiny__') >= 0;
+        var leaf = !m.links.some(function (l) { return l.from === z.id; });
         var color = (isUnknown || isTiny)
           ? css.getPropertyValue('--unknown').trim()
           : css.getPropertyValue(SLOTS[slot++ % SLOTS.length]).trim();
@@ -166,40 +212,18 @@
         var pct = m.total ? Math.round(z.watts / m.total * 100) : 0;
         var title = z.label + ' · ' + fmt(z.watts) + ' W · ' + pct + '%';
 
-        svg.appendChild(ribbon(X_SRC + NODE, ySrc, ySrc + h, X_ZONE, yZone, yZone + h, color, title));
+        var gA = 'g' + (gid++);
+        defs.appendChild(gradient(gA, srcColor, color));
+        svg.appendChild(ribbon(X_SRC + W_SRC, ySrc, ySrc + h, X_ZONE, yZone, yZone + h, 'url(#' + gA + ')', title));
 
-        var bar = el('rect', { x: X_ZONE, y: yZone, width: NODE, height: h, rx: 3, fill: color, class: 'band' });
-        hover(bar, title);
-        svg.appendChild(bar);
+        // Une branche sans détail s'étend jusqu'au bord : le vide suggérerait un dessin manquant,
+        // la hachure dit qu'il manque une donnée.
+        var boxW = leaf ? (X_END - X_ZONE) : W_ZONE;
+        var box = nodeBox(X_ZONE, yZone, boxW, h, color, z.label, z.watts, pct, isUnknown || isTiny, leaf);
+        hover(box, title);
+        svg.appendChild(box);
 
-        // Libellé sur chaque bande : le contraste des teintes claires l'exige, et il porte
-        // l'identité pour qui ne distingue pas les couleurs.
-        var leaf = !m.links.some(function (l) { return l.from === z.id; });
-        if (h >= 11 && !leaf) {
-          var t = el('text', { x: X_ZONE + NODE + 6, y: yZone + h / 2 + 3.5, class: 'lbl' });
-          t.textContent = cut(z.label, 22) + '  ' + fmt(z.watts) + ' W';
-          svg.appendChild(t);
-        }
-
-        // Appareils de la pièce.
         var kids = m.links.filter(function (l) { return l.from === z.id; });
-
-        if (!kids.length) {
-          // Branche sans détail : elle s'étend jusqu'au bord, hachurée. Laisser du vide à droite
-          // suggérerait qu'il manque un dessin ; la hachure dit qu'il manque une DONNÉE.
-          var tail = el('rect', {
-            x: X_ZONE + NODE, y: yZone, width: X_END - (X_ZONE + NODE), height: h,
-            rx: 3, fill: 'url(#hatch)',
-          });
-          hover(tail, title);
-          svg.appendChild(tail);
-          if (h >= 8) {
-            var lt = el('text', { x: X_ZONE + NODE + 10, y: yZone + h / 2 + 3.5, class: 'lbl dim' });
-            lt.textContent = z.label + '  ' + fmt(z.watts) + ' W  ·  ' + pct + '%';
-            svg.appendChild(lt);
-          }
-        }
-
         if (kids.length) {
           var inner = Math.max(1, h - (kids.length - 1) * GAP_DEV);
           var dscale = inner / z.watts;
@@ -207,16 +231,17 @@
           kids.forEach(function (l) {
             var node = m.nodes.filter(function (n) { return n.id === l.to; })[0];
             var dh = Math.max(1, l.watts * dscale);
-            var dtitle = (node ? node.label : '?') + ' · ' + fmt(l.watts) + ' W · ' + z.label;
-            svg.appendChild(ribbon(X_ZONE + NODE, yz, yz + dh, X_DEV, yd, yd + dh, color, dtitle));
-            var db = el('rect', { x: X_DEV, y: yd, width: NODE, height: dh, rx: 3, fill: color, class: 'band' });
-            hover(db, dtitle);
-            svg.appendChild(db);
-            if (dh >= 8 && node) {
-              var dt = el('text', { x: X_DEV + NODE + 6, y: yd + dh / 2 + 3.3, class: 'val' });
-              dt.textContent = cut(node.label, 30) + '  ' + fmt(l.watts) + ' W';
-              svg.appendChild(dt);
-            }
+            var dpct = z.watts ? Math.round(l.watts / z.watts * 100) : 0;
+            var dtitle = (node ? node.label : '?') + ' · ' + fmt(l.watts) + ' W · ' + dpct + '% de ' + z.label;
+
+            var gB = 'g' + (gid++);
+            defs.appendChild(gradient(gB, color, color));
+            svg.appendChild(ribbon(X_ZONE + W_ZONE, yz, yz + dh, X_DEV, yd, yd + dh, 'url(#' + gB + ')', dtitle));
+
+            var dbox = nodeBox(X_DEV, yd, X_END - X_DEV, dh, color,
+              node ? node.label : '?', l.watts, dpct, false, false);
+            hover(dbox, dtitle);
+            svg.appendChild(dbox);
             yz += dh + GAP_DEV; yd += dh + GAP_DEV;
           });
         }
@@ -225,11 +250,12 @@
         yZone += h + GAP_ZONE;
       });
 
-      // Le compteur, dessiné en dernier pour passer au-dessus des départs de rubans.
-      svg.appendChild(el('rect', {
-        x: X_SRC, y: 3, width: NODE, height: Math.max(1, ySrc - 3 - GAP_ZONE),
-        rx: 3, fill: css.getPropertyValue('--text-secondary').trim(), class: 'band',
-      }));
+      // Le compteur, dessiné en dernier pour couvrir les départs de rubans.
+      var srcH = Math.max(1, ySrc - 3 - GAP_ZONE);
+      var sbox = nodeBox(X_SRC, 3, W_SRC, srcH, srcColor,
+        srcNode ? srcNode.label : 'Compteur', m.total, null, false, false);
+      hover(sbox, (srcNode ? srcNode.label : 'Compteur') + ' · ' + fmt(m.total) + ' W');
+      svg.appendChild(sbox);
     }
 
     /**
