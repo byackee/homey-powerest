@@ -11,6 +11,7 @@ import Homey from 'homey';
 
 import type PowerEstimateApp from '../../app.mjs';
 import type { Candidate } from '../../app.mjs';
+import { plannedCapabilities } from '../../lib/mirror.mjs';
 
 /** Ce que la vue de pairing reçoit. Volontairement plat : elle n'a pas de logique. */
 interface CandidateView {
@@ -61,6 +62,10 @@ export default class EstimatorDriver extends Homey.Driver {
       return {
         name: candidate.device.name,
         data: { id: `estimate:${candidate.device.id}` },
+        // Le compagnon reprend les commandes de la source pour pouvoir la REMPLACER dans
+        // l'interface. Le SDK n'accepte à l'appairage que name/data/store/settings/icon/
+        // capabilities/capabilitiesOptions — toute autre clé est ignorée en silence.
+        capabilities: plannedCapabilities(candidate.device.capabilities),
         store: {
           sourceId: candidate.device.id,
           sourceClass: candidate.device.class,

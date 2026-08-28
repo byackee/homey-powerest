@@ -1,5 +1,5 @@
 /**
- * `drivers/estimator/device.mts` — un appareil virtuel qui estime la puissance d'un autre.
+ * `drivers/estimator/device.mts` — l'appareil qui REMPLACE l'appareil réel.
  *
  * Le cycle est court et toujours le même : une capability de la source change → on recalcule les
  * watts → on intègre l'énergie écoulée → on écrit `measure_power` et `meter_power`.
@@ -9,7 +9,13 @@
  *  1. `meter_power` ne recule JAMAIS. Homey calcule la consommation par différence entre deux
  *     relevés ; un compteur qui recule produit une consommation négative puis un pic aberrant.
  *  2. La source ne doit être comptée qu'une fois. Homey lui applique sa propre approximation
- *     forfaitaire ; sans `energy_exclude`, l'onglet Énergie additionne les deux.
+ *     forfaitaire ; sans exclusion, l'onglet Énergie additionne les deux.
+ *
+ * Le compagnon ne se contente pas d'afficher des watts : il reprend les commandes de la source
+ * (allumage, gradation, couleur) et les lui renvoie, pour que l'utilisateur n'ait qu'UNE tuile —
+ * celle qui porte aussi la consommation — et puisse masquer l'appareil d'origine. La seule
+ * écriture qu'une app puisse faire sur l'appareil d'une autre est `setCapabilityValue` ; c'est
+ * exactement celle dont ce miroir a besoin.
  */
 
 import Homey from 'homey';
@@ -21,6 +27,7 @@ import { accumulate, restoreMeter, roundKwh, type MeterState } from '../../lib/e
 import { computePower } from '../../lib/strategies.mjs';
 import { toLightState, type HomeyLightCapabilities } from '../../lib/units.mjs';
 import { ProfileError } from '../../lib/types.mjs';
+import { capabilityDiff, plannedCapabilities, writableCapabilities } from '../../lib/mirror.mjs';
 
 /**
  * Capabilities de la source qui influencent la consommation.
@@ -74,6 +81,9 @@ export default class EstimatorDevice extends Homey.Device {
 
     this.meter = restoreMeter(this.getStoreValue('meter'), Date.now());
 
+    await this.syncCapabilities();
+    this.registerControls();
+
     this.ticker = this.homey.setInterval(() => { void this.tick(); }, TICK_MS);
     await this.loadProfile();
   }
@@ -109,6 +119,52 @@ export default class EstimatorDevice extends Homey.Device {
     }
     if (changedKeys.includes('min_mired') || changedKeys.includes('max_mired')) {
       await this.recompute(Date.now());
+    }
+  }
+
+  /**
+   * Aligne les capabilities du compagnon sur celles de la source.
+   *
+   * Fait à CHAQUE démarrage et non seulement à l'appairage : une lampe peut gagner ou perdre des
+   * capabilities quand son app est mise à jour, et un compagnon figé deviendrait un pilote
+   * incomplet — une tuile sans gradation pour une lampe gradable, sans que rien ne le signale.
+   */
+  private async syncCapabilities(): Promise<void> {
+    const source = this.app.getHub().getDevice(this.sourceId);
+    if (!source) return;
+
+    const { add, remove } = capabilityDiff(this.getCapabilities(), plannedCapabilities(source.capabilities));
+
+    for (const capability of add) {
+      try { await this.addCapability(capability); }
+      catch (err) { this.app.note('caps!', `ajout de ${capability} : ${describe(err)}`); }
+    }
+    for (const capability of remove) {
+      try { await this.removeCapability(capability); }
+      catch (err) { this.app.note('caps!', `retrait de ${capability} : ${describe(err)}`); }
+    }
+    if (add.length > 0 || remove.length > 0) {
+      this.app.note('caps', `${this.getName()} : +[${add.join(', ')}] -[${remove.join(', ')}]`);
+    }
+  }
+
+  /**
+   * Renvoie vers la source ce que l'utilisateur fait sur la tuile du compagnon.
+   *
+   * Aucune boucle à craindre : `setCapabilityValue` appelé par l'appareil sur lui-même ne
+   * déclenche pas ses propres écouteurs. Le retour d'état arrive par l'abonnement au hub, ce qui
+   * fait converger la tuile sur ce que la lampe a RÉELLEMENT fait — et non sur ce qu'on lui a
+   * demandé, distinction qui compte quand une lampe est hors tension.
+   */
+  private registerControls(): void {
+    const source = this.app.getHub().getDevice(this.sourceId);
+    if (!source) return;
+
+    for (const capability of writableCapabilities(source.capabilities)) {
+      if (!this.hasCapability(capability)) continue;
+      this.registerCapabilityListener(capability, async (value: unknown) => {
+        await this.app.getHub().setCapability(this.sourceId, capability, value as never);
+      });
     }
   }
 
@@ -167,15 +223,26 @@ export default class EstimatorDevice extends Homey.Device {
 
     const watched = WATCHED.filter((cap) => source.capabilities.includes(cap));
     const current = hub.readCapabilities(this.sourceId, watched);
-    for (const [key, value] of Object.entries(current)) this.state.set(key, value);
+    for (const [key, value] of Object.entries(current)) {
+      this.state.set(key, value);
+      await this.reflect(key, value);
+    }
 
     for (const sub of this.subscriptions.splice(0)) sub.destroy();
     for (const capability of watched) {
       this.subscriptions.push(hub.subscribe(this.sourceId, capability, (value) => {
         this.state.set(capability, value);
+        void this.reflect(capability, value);
         void this.recompute(Date.now());
       }));
     }
+  }
+
+  /** Recopie une valeur de la source sur la capability correspondante du compagnon. */
+  private async reflect(capability: string, value: CapValue | null): Promise<void> {
+    if (!this.hasCapability(capability) || value === null) return;
+    await this.setCapabilityValue(capability, value)
+      .catch((err: unknown) => this.app.note('mir!', `${capability} : ${describe(err)}`));
   }
 
   /**
@@ -290,4 +357,8 @@ export default class EstimatorDevice extends Homey.Device {
 /** Un réglage numérique dont on refuse les valeurs impossibles plutôt que de les propager. */
 function numberSetting(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function describe(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

@@ -110,12 +110,13 @@
   "drivers": [
     {
       "name": {
-        "en": "Estimated Power",
-        "fr": "Puissance estimée",
-        "nl": "Geschat vermogen"
+        "en": "Estimated device",
+        "fr": "Appareil estimé",
+        "nl": "Geschat apparaat"
       },
       "class": "sensor",
       "capabilities": [
+        "onoff",
         "measure_power",
         "meter_power"
       ],

@@ -62,6 +62,7 @@ interface ApiDevice {
   driverUri?: string;
   available: boolean;
   makeCapabilityInstance(capabilityId: string, listener: (value: CapValue | null) => void): ApiCapabilityInstance;
+  setCapabilityValue(opts: { capabilityId: string; value: CapValue }): Promise<void>;
 }
 
 interface ApiManagerDevices {
@@ -258,6 +259,20 @@ export class HomeyApiHub extends EventEmitter {
     sub.onDisposed = () => this.subscriptions.delete(sub);
     sub.attach();
     return sub;
+  }
+
+  /**
+   * Écrit une capability sur un appareil tiers.
+   *
+   * C'est ce qui permet au compagnon de REMPLACER l'appareil réel : l'utilisateur agit sur la
+   * tuile du compagnon, et la commande part vers la vraie lampe. Contrairement à
+   * `setDeviceSettings`, cette opération n'exige que le scope `homey.device.control`, que les
+   * apps reçoivent — c'est la seule écriture qu'une app puisse faire sur l'appareil d'une autre.
+   */
+  public async setCapability(deviceId: string, capabilityId: string, value: CapValue): Promise<void> {
+    const device = this.devices[deviceId];
+    if (!device) throw new Error(`appareil ${deviceId} inconnu`);
+    await device.setCapabilityValue({ capabilityId, value });
   }
 
   /**

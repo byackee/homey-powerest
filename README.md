@@ -30,15 +30,27 @@ donne 84 W**.
 2. Elle rapproche chaque appareil Homey d'un profil par son modèle : l'app Hue publie
    `settings.Model_ID = "LCT012"`, qui est exactement la clé Signify de la bibliothèque. La
    jointure est directe, pas heuristique — 23 des 26 appareils estimables d'un parc réel.
-3. Vous créez un **appareil virtuel compagnon** portant `measure_power` et `meter_power`.
-4. L'app s'abonne aux changements de la source (allumage, gradation, couleur) et recalcule.
-5. Elle vérifie que la source est bien exclue de l'onglet Énergie, et vous avertit sinon.
+3. Vous créez un **appareil qui remplace le vôtre** : il reprend ses commandes (allumage,
+   gradation, teinte, saturation, température) et y ajoute `measure_power` et `meter_power`.
+4. L'app s'abonne aux changements de la source et recalcule ; les commandes faites sur la nouvelle
+   tuile sont renvoyées à l'appareil réel.
+5. Vous masquez l'appareil d'origine et ne gardez que celui-ci.
+6. Un widget de tableau de bord permet aussi d'afficher la puissance estimée à côté de n'importe
+   quel appareil.
 
 Stratégies gérées : `lut` (531 profils), `fixed` (134), `linear` (69) — soit 734 des 744.
 `composite` et `multi_switch` (10 profils) ne le sont pas.
 
 ## Limites connues, et pourquoi
 
+- 🔴 **`measure_power` ne peut pas être ajouté à l'appareil d'origine.** Aucune API n'ajoute de
+  capability à l'appareil d'une autre app : côté appareils il n'y a que `getCapabilityValue` et
+  `setCapabilityValue`, qui agissent sur une capability existante, et `updateDevice` ne touche que
+  `name`, `zone`, `note`, `iconOverride`, `virtualClass`, `uiIndicator`, `hidden`. Le
+  `Device#addCapability()` du SDK ne vaut que pour les appareils de sa propre app. C'est pourquoi
+  l'app crée un appareil qui **remplace** le vôtre plutôt qu'un appareil qui s'y ajoute — et c'est
+  aussi ce que fait *Device Capabilities*, la référence du store, avec son *Advanced Virtual
+  Device*.
 - 🔴 **L'exclusion de la source est manuelle.** Homey applique sa propre estimation forfaitaire à
   l'appareil source ; sans l'exclure, l'onglet Énergie compte deux fois le même appareil et le
   total devient *plus* faux qu'avant l'installation. **Une app ne peut pas le faire elle-même** :
