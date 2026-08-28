@@ -1,0 +1,63 @@
+<!--
+  Page de réglages : diagnostic.
+
+  Contrairement aux vues de pairing, une page de settings DOIT inclure /homey.js et attendre
+  onHomeyReady. Elle est ici le seul moyen de lire ce que fait l'app : une app installée via
+  `homey app install` n'expose aucun journal, ni dans Developer Tools ni au CLI.
+-->
+<script type="text/javascript" src="/homey.js" data-origin="settings"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 14px; }
+  h2 { font-size: 15px; margin: 18px 0 8px; }
+  .row { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: 1px solid #eee; }
+  .k { color: #666; }
+  .v { font-weight: 600; }
+  pre { background: #f6f6f6; border-radius: 6px; padding: 10px; font-size: 11px; max-height: 300px; overflow: auto; white-space: pre-wrap; }
+  button { font-size: 14px; padding: 8px 14px; border-radius: 6px; border: 1px solid #ccc; background: #fafafa; cursor: pointer; }
+</style>
+
+<h2 data-i18n="settings.status">État</h2>
+<div class="row"><span class="k">Connexion aux appareils</span><span class="v" id="st-connected">…</span></div>
+<div class="row"><span class="k">Bibliothèque de profils</span><span class="v" id="st-library">…</span></div>
+<div class="row"><span class="k">Appareils estimables</span><span class="v" id="st-candidates">…</span></div>
+
+<p><button id="st-refresh" type="button">Recharger la bibliothèque</button></p>
+
+<h2>Journal</h2>
+<pre id="st-trace">…</pre>
+
+<script type="text/javascript">
+  function onHomeyReady(Homey) {
+    'use strict';
+
+    function set(id, text) { document.getElementById(id).textContent = text; }
+
+    function load() {
+      Homey.api('GET', '/status', null, function (err, status) {
+        if (err) { set('st-connected', 'erreur : ' + err); return; }
+        set('st-connected', status.connected ? 'connectée' : 'en attente');
+        set('st-library', status.libraryError
+          ? 'indisponible — ' + status.libraryError
+          : status.libraryLoaded ? status.libraryModels + ' modèles' : 'chargement…');
+      });
+
+      Homey.api('GET', '/candidates', null, function (err, list) {
+        if (err) { set('st-candidates', 'erreur'); return; }
+        var withProfile = list.filter(function (c) { return c.supported; }).length;
+        set('st-candidates', withProfile + ' sur ' + list.length);
+      });
+
+      Homey.api('GET', '/trace', null, function (err, lines) {
+        set('st-trace', err ? String(err) : (lines.length ? lines.join('\n') : 'rien à signaler'));
+      });
+    }
+
+    document.getElementById('st-refresh').addEventListener('click', function () {
+      Homey.api('POST', '/library/refresh', null, function () { setTimeout(load, 1500); });
+    });
+
+    load();
+    setInterval(load, 10000);
+    Homey.ready();
+  }
+</script>

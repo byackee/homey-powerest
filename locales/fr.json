@@ -1,0 +1,13 @@
+{
+  "pair": {
+    "gone": "Cet appareil n'est plus disponible",
+    "no_profile": "Aucun profil mesuré n'existe pour cet appareil",
+    "unsupported": "Ce profil utilise une stratégie de calcul non gérée par cette version"
+  },
+  "device": {
+    "no_source": "Aucun appareil source enregistré",
+    "no_profile": "Aucun profil enregistré pour cet appareil",
+    "profile_error": "Le profil n'a pas pu être chargé",
+    "source_gone": "L'appareil source n'est plus disponible"
+  }
+}

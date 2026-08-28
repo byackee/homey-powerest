@@ -1,0 +1,208 @@
+{
+  "_comment": "This file is generated. Please edit .homeycompose/app.json instead.",
+  "id": "com.dataweavelabs.powerestimate",
+  "version": "1.0.0",
+  "compatibility": ">=12.0.1",
+  "sdk": 3,
+  "platforms": [
+    "local"
+  ],
+  "brandColor": "#F59F00",
+  "name": {
+    "en": "Power Estimator",
+    "fr": "Power Estimator",
+    "nl": "Power Estimator"
+  },
+  "description": {
+    "en": "Estimate the power and energy of devices that have no meter, from measured device profiles",
+    "fr": "Estimez la puissance et l'énergie des appareils sans compteur, à partir de profils mesurés",
+    "nl": "Schat vermogen en energie van apparaten zonder meter, op basis van gemeten profielen"
+  },
+  "category": [
+    "tools",
+    "energy"
+  ],
+  "permissions": [
+    "homey:manager:api"
+  ],
+  "tags": {
+    "en": [
+      "power",
+      "energy",
+      "watt",
+      "kwh",
+      "estimate",
+      "hue",
+      "philips",
+      "signify",
+      "ikea",
+      "tuya",
+      "innr",
+      "powercalc",
+      "virtual meter",
+      "consumption"
+    ],
+    "fr": [
+      "puissance",
+      "énergie",
+      "watt",
+      "kwh",
+      "estimation",
+      "hue",
+      "philips",
+      "signify",
+      "ikea",
+      "tuya",
+      "innr",
+      "powercalc",
+      "compteur virtuel",
+      "consommation"
+    ],
+    "nl": [
+      "vermogen",
+      "energie",
+      "watt",
+      "kwh",
+      "schatting",
+      "hue",
+      "philips",
+      "signify",
+      "ikea",
+      "tuya",
+      "innr",
+      "powercalc",
+      "virtuele meter",
+      "verbruik"
+    ]
+  },
+  "images": {
+    "small": "/assets/images/small.png",
+    "large": "/assets/images/large.png",
+    "xlarge": "/assets/images/xlarge.png"
+  },
+  "author": {
+    "name": "Vincent",
+    "email": "admin@dataweavelabs.com"
+  },
+  "api": {
+    "getStatus": {
+      "method": "GET",
+      "path": "/status",
+      "role": "owner"
+    },
+    "getCandidates": {
+      "method": "GET",
+      "path": "/candidates",
+      "role": "owner"
+    },
+    "refreshLibrary": {
+      "method": "POST",
+      "path": "/library/refresh",
+      "role": "owner"
+    },
+    "getTrace": {
+      "method": "GET",
+      "path": "/trace",
+      "role": "owner"
+    }
+  },
+  "esm": true,
+  "drivers": [
+    {
+      "name": {
+        "en": "Estimated Power",
+        "fr": "Puissance estimée",
+        "nl": "Geschat vermogen"
+      },
+      "class": "sensor",
+      "capabilities": [
+        "measure_power",
+        "meter_power"
+      ],
+      "energy": {
+        "approximated": true
+      },
+      "platforms": [
+        "local"
+      ],
+      "connectivity": [],
+      "images": {
+        "small": "/drivers/estimator/assets/images/small.png",
+        "large": "/drivers/estimator/assets/images/large.png",
+        "xlarge": "/drivers/estimator/assets/images/xlarge.png"
+      },
+      "pair": [
+        {
+          "id": "list_devices"
+        }
+      ],
+      "settings": [
+        {
+          "id": "source_name",
+          "type": "label",
+          "label": {
+            "en": "Source device",
+            "fr": "Appareil source",
+            "nl": "Bronapparaat"
+          },
+          "value": ""
+        },
+        {
+          "id": "profile_label",
+          "type": "label",
+          "label": {
+            "en": "Profile",
+            "fr": "Profil",
+            "nl": "Profiel"
+          },
+          "value": ""
+        },
+        {
+          "id": "exclude_source",
+          "type": "checkbox",
+          "value": true,
+          "label": {
+            "en": "Exclude the source from Energy",
+            "fr": "Exclure la source de l'onglet Énergie",
+            "nl": "Bron uitsluiten van Energie"
+          },
+          "hint": {
+            "en": "Homey applies its own flat estimate to the source device. Leaving it enabled counts the same device twice in Energy.",
+            "fr": "Homey applique sa propre estimation forfaitaire à l'appareil source. Laisser l'option désactivée compte deux fois le même appareil dans l'onglet Énergie.",
+            "nl": "Homey past een eigen vaste schatting toe op het bronapparaat. Uitschakelen telt hetzelfde apparaat twee keer mee in Energie."
+          }
+        },
+        {
+          "id": "min_mired",
+          "type": "number",
+          "value": 153,
+          "min": 100,
+          "max": 600,
+          "label": {
+            "en": "Coldest colour temperature (mired)",
+            "fr": "Température de couleur la plus froide (mired)",
+            "nl": "Koudste kleurtemperatuur (mired)"
+          },
+          "hint": {
+            "en": "Homey reports colour temperature as 0..1 and never exposes the lamp's physical range. 153 mired (6500 K) matches Philips Hue. Adjust only if your lamp differs.",
+            "fr": "Homey exprime la température de couleur en 0..1 et n'expose jamais la plage physique de la lampe. 153 mired (6500 K) correspond aux Philips Hue. À modifier seulement si votre lampe diffère.",
+            "nl": "Homey geeft kleurtemperatuur als 0..1 en toont nooit het fysieke bereik van de lamp. 153 mired (6500 K) komt overeen met Philips Hue."
+          }
+        },
+        {
+          "id": "max_mired",
+          "type": "number",
+          "value": 500,
+          "min": 100,
+          "max": 600,
+          "label": {
+            "en": "Warmest colour temperature (mired)",
+            "fr": "Température de couleur la plus chaude (mired)",
+            "nl": "Warmste kleurtemperatuur (mired)"
+          }
+        }
+      ],
+      "id": "estimator"
+    }
+  ]
+}

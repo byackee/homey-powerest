@@ -1,0 +1,13 @@
+{
+  "pair": {
+    "gone": "This device is no longer available",
+    "no_profile": "No measured profile exists for this device",
+    "unsupported": "This profile uses a calculation strategy this version does not support"
+  },
+  "device": {
+    "no_source": "No source device stored",
+    "no_profile": "No profile stored for this device",
+    "profile_error": "Profile could not be loaded",
+    "source_gone": "The source device is no longer available"
+  }
+}

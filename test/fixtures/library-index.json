@@ -1,0 +1,154 @@
+{
+ "manufacturers": [
+  {
+   "aliases": [],
+   "name": "innr",
+   "full_name": "Innr",
+   "dir_name": "innr",
+   "models": [
+    {
+     "calculation_strategy": "fixed",
+     "created_at": "2022-10-21T09:32:56Z",
+     "device_type": "smart_switch",
+     "measure_device": "Shelly Plug S",
+     "measure_method": "manual",
+     "name": "Smart Plug",
+     "only_self_usage": true,
+     "standby_power": 0.41,
+     "standby_power_on": 0.61,
+     "id": "SP 120",
+     "manufacturer": "innr",
+     "updated_at": "2026-08-28T05:54:58",
+     "max_power": 0.61,
+     "sub_profile_count": 0,
+     "hash": "e64a352aca61450d7b5ca5182808f513"
+    }
+   ],
+   "device_types": [
+    "light",
+    "smart_switch"
+   ]
+  },
+  {
+   "aliases": [
+    "Philips",
+    "Signify Netherlands B.V."
+   ],
+   "name": "signify",
+   "full_name": "Signify",
+   "dir_name": "signify",
+   "models": [
+    {
+     "aliases": [
+      "8718696485880"
+     ],
+     "calculation_strategy": "lut",
+     "created_at": "2021-06-11T22:01:53Z",
+     "device_type": "light",
+     "measure_device": "Shelly Plug S",
+     "measure_method": "script",
+     "name": "Hue White and Color Ambiance Spot GU10",
+     "standby_power": 0.25,
+     "id": "LCT003",
+     "manufacturer": "signify",
+     "updated_at": "2026-08-21T10:30:36",
+     "max_power": 6.19,
+     "sub_profile_count": 0,
+     "color_modes": [
+      "color_temp",
+      "hs"
+     ],
+     "lut_quality": {
+      "score": 67.4,
+      "color_temp": 67.4
+     },
+     "hash": "c859e4931c44a9bdd02e545620f48b97"
+    },
+    {
+     "calculation_strategy": "lut",
+     "created_at": "2021-06-11T22:01:53Z",
+     "device_type": "light",
+     "measure_device": "Shelly Plug S",
+     "measure_method": "script",
+     "name": "Hue White and Color Ambiance Candle E12",
+     "standby_power": 0.35,
+     "id": "LCT012",
+     "manufacturer": "signify",
+     "updated_at": "2026-08-21T10:30:36",
+     "max_power": 5.43,
+     "sub_profile_count": 0,
+     "color_modes": [
+      "color_temp",
+      "hs"
+     ],
+     "lut_quality": {
+      "score": 54.6,
+      "color_temp": 54.6
+     },
+     "hash": "4e68983fc18abc7588dab1e62af0c538"
+    },
+    {
+     "aliases": [
+      "915005106701"
+     ],
+     "calculation_strategy": "lut",
+     "created_at": "2021-09-10T20:49:41Z",
+     "device_type": "light",
+     "measure_device": "AVM Fritz!DECT 200",
+     "measure_method": "script",
+     "name": "Hue LightStrip Plus (2m)",
+     "standby_power": 0.18,
+     "id": "LST002",
+     "manufacturer": "signify",
+     "updated_at": "2026-08-21T10:30:36",
+     "max_power": 21.88,
+     "sub_profile_count": 0,
+     "color_modes": [
+      "color_temp",
+      "hs"
+     ],
+     "lut_quality": {
+      "score": 32.7,
+      "color_temp": 32.7
+     },
+     "hash": "30560ef4e146c30dd383147fcf840881"
+    },
+    {
+     "aliases": [
+      "8718696598283"
+     ],
+     "calculation_strategy": "lut",
+     "created_at": "2022-02-14T21:48:07Z",
+     "device_type": "light",
+     "measure_device": "Shelly Plus 1PM",
+     "measure_method": "script",
+     "measure_settings": {
+      "SAMPLE_COUNT": 1,
+      "SLEEP_TIME": 5,
+      "VERSION": "v0.17.0:docker"
+     },
+     "name": "Hue White Ambiance GU10",
+     "standby_power": 0.3,
+     "id": "LTW013",
+     "manufacturer": "signify",
+     "updated_at": "2026-08-21T10:30:36",
+     "max_power": 5.43,
+     "sub_profile_count": 0,
+     "color_modes": [
+      "color_temp"
+     ],
+     "lut_quality": {
+      "score": 98.7,
+      "color_temp": 98.7
+     },
+     "hash": "6d6d18451b82c602350a31dc16fa57cb"
+    }
+   ],
+   "device_types": [
+    "light",
+    "network",
+    "smart_switch"
+   ]
+  }
+ ]
+}

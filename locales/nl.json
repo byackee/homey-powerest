@@ -1,0 +1,13 @@
+{
+  "pair": {
+    "gone": "Dit apparaat is niet meer beschikbaar",
+    "no_profile": "Er bestaat geen gemeten profiel voor dit apparaat",
+    "unsupported": "Dit profiel gebruikt een berekeningsstrategie die deze versie niet ondersteunt"
+  },
+  "device": {
+    "no_source": "Geen bronapparaat opgeslagen",
+    "no_profile": "Geen profiel opgeslagen voor dit apparaat",
+    "profile_error": "Profiel kon niet worden geladen",
+    "source_gone": "Het bronapparaat is niet meer beschikbaar"
+  }
+}

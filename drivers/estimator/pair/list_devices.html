@@ -1,0 +1,135 @@
+<!--
+  Vue de pairing unique.
+
+  ⚠️ Aucune balise <script src="/homey.js"> ici : Homey injecte lui-même son API dans les vues de
+  pairing. En charger une seconde copie crée une instance NON rattachée à la session — la page
+  s'anime normalement, mais tous les Homey.emit() partent dans le vide, sans la moindre erreur.
+
+  Toutes les vues d'un même driver partagent un document et la portée JS globale : les
+  identifiants sont donc préfixés par le nom de la vue, et tout le script est encapsulé.
+-->
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 12px; }
+  #ld-status { font-size: 13px; color: #666; margin-bottom: 10px; }
+  #ld-list { list-style: none; margin: 0; padding: 0; }
+  .ld-item { border: 1px solid #e3e3e3; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; }
+  .ld-item.ld-off { opacity: .55; cursor: not-allowed; }
+  .ld-name { font-weight: 600; font-size: 15px; }
+  .ld-meta { font-size: 12px; color: #777; margin-top: 3px; }
+  .ld-warn { font-size: 12px; color: #b45309; margin-top: 3px; }
+  #ld-actions { margin-top: 12px; }
+  button { font-size: 14px; padding: 8px 14px; border-radius: 6px; border: 1px solid #ccc; background: #fafafa; cursor: pointer; }
+</style>
+
+<div id="ld-status">…</div>
+<ul id="ld-list"></ul>
+<div id="ld-actions"><button id="ld-refresh" type="button">Rafraîchir</button></div>
+
+<script type="text/javascript">
+  (function () {
+    'use strict';
+
+    var POLL_MS = 2000;
+    var busy = false;
+
+    function trace(message) {
+      try { Homey.emit('viewLog', String(message)); } catch (e) { /* la session peut être finie */ }
+    }
+
+    function el(id) { return document.getElementById(id); }
+
+    function status(text) { el('ld-status').textContent = text; }
+
+    function warningText(code) {
+      if (code === 'unsupported') return 'Stratégie non gérée par cette version';
+      if (code === 'self_usage') return 'Ce profil ne mesure que l’appareil lui-même, pas la charge qu’il pilote';
+      if (code === 'sub_profiles') return 'Ce profil a des variantes : la mesure peut différer';
+      if (code === 'unconfirmed') return 'Fabricant non confirmé — à vérifier';
+      return null;
+    }
+
+    function render(items) {
+      var list = el('ld-list');
+      list.innerHTML = '';
+      var usable = 0;
+
+      items.forEach(function (item) {
+        var li = document.createElement('li');
+        li.className = 'ld-item' + (item.selectable ? '' : ' ld-off');
+
+        var name = document.createElement('div');
+        name.className = 'ld-name';
+        name.textContent = item.name + (item.zone ? ' — ' + item.zone : '');
+        li.appendChild(name);
+
+        var meta = document.createElement('div');
+        meta.className = 'ld-meta';
+        meta.textContent = item.profile
+          ? item.profile + ' · ' + item.strategy + ' · via ' + item.detail
+          : 'Aucun profil dans la bibliothèque';
+        li.appendChild(meta);
+
+        var warn = warningText(item.warning);
+        if (warn) {
+          var w = document.createElement('div');
+          w.className = 'ld-warn';
+          w.textContent = warn;
+          li.appendChild(w);
+        }
+
+        if (item.selectable) {
+          usable += 1;
+          li.addEventListener('click', function () { pick(item); });
+        }
+        list.appendChild(li);
+      });
+
+      status(usable + ' appareil(s) estimable(s) sur ' + items.length + ' sans mesure de puissance');
+    }
+
+    function pick(item) {
+      if (busy) return;
+      busy = true;
+      status('Création de « ' + item.name + ' »…');
+      Homey.emit('build', item.id, function (err, device) {
+        if (err) {
+          busy = false;
+          status('Échec : ' + err);
+          trace('build failed: ' + err);
+          return;
+        }
+        Homey.createDevice(device, function (createErr) {
+          if (createErr) {
+            busy = false;
+            status('Échec : ' + createErr);
+            trace('createDevice failed: ' + createErr);
+            return;
+          }
+          Homey.done();
+        });
+      });
+    }
+
+    function load() {
+      Homey.emit('list', null, function (err, result) {
+        if (err) { status('Erreur : ' + err); trace('list failed: ' + err); return; }
+        if (!result.ready) {
+          status(result.error
+            ? 'Bibliothèque indisponible : ' + result.error
+            : 'Chargement de la bibliothèque de profils…');
+          setTimeout(load, POLL_MS);
+          return;
+        }
+        render(result.items);
+      });
+    }
+
+    el('ld-refresh').addEventListener('click', function () {
+      status('Rafraîchissement…');
+      Homey.emit('refresh', null, function () { load(); });
+    });
+
+    trace('list_devices prêt');
+    load();
+  })();
+</script>
