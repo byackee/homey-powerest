@@ -10,6 +10,7 @@
     "no_profile": "Aucun profil enregistré pour cet appareil",
     "profile_error": "Le profil n'a pas pu être chargé",
     "source_gone": "L'appareil source n'est plus disponible",
-    "exclude_manually": "Double comptage : ouvrez l'appareil source et activez Réglages → Énergie → Exclure de l'Énergie. Homey n'autorise pas une app à le faire à votre place."
+    "exclude_manually": "Double comptage : ouvrez l'appareil source et activez Réglages → Énergie → Exclure de l'Énergie. Homey n'autorise pas une app à le faire à votre place.",
+    "hidden_but_partial": "L'appareil source est masqué alors que celui-ci ne reprend pas __count__ de ses fonctions. Réaffichez-le : l'exclure de l'Énergie suffit à éviter le double comptage."
   }
 }

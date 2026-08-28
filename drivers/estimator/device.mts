@@ -69,6 +69,15 @@ export default class EstimatorDevice extends Homey.Device {
    * c'est-à-dire zéro, puisqu'on ne renseigne pas de veille pour ce qui n'en a pas.
    */
   private alwaysOn = false;
+  /**
+   * Capabilities de la source que ce compagnon NE reprend PAS.
+   *
+   * Sert à avertir quand la source a été masquée alors qu'elle n'est pas remplaçable : on perd
+   * alors ses fonctions propres sans que rien ne le signale. C'est exactement l'erreur commise sur
+   * une Freebox et un pont Zigbee — masquer et exclure sont deux gestes indépendants, l'exclusion
+   * ne règle que l'arithmétique.
+   */
+  private lostCapabilities: string[] = [];
 
   private get app(): PowerEstimateApp {
     return this.homey.app as PowerEstimateApp;
@@ -247,6 +256,10 @@ export default class EstimatorDevice extends Homey.Device {
     // SDK, et le hub peut ne pas être connecté quand l'appareil démarre. Aligner les capabilities
     // sur une source inconnue les laisserait figées jusqu'au redémarrage suivant.
     this.alwaysOn = !source.capabilities.includes('onoff');
+    const mine = new Set(plannedCapabilities(source.capabilities));
+    this.lostCapabilities = source.capabilities.filter(
+      (capability) => !mine.has(capability) && !capability.startsWith('button.'),
+    );
     await this.syncCapabilities(source.capabilities);
     this.registerControls(source.capabilities);
 
@@ -316,11 +329,19 @@ export default class EstimatorDevice extends Homey.Device {
     const source = this.app.getHub().getDevice(this.sourceId);
     const actual = (source?.settings ?? {})['energy_exclude'] === true;
 
+    // L'ordre est celui de la gravité. Un double comptage rend le TOTAL du logement faux ; une
+    // source masquée sans remplaçant ne fait perdre que des fonctions, ce qui se rattrape.
     if (wanted && !actual) {
       await this.setWarning(this.homey.__('device.exclude_manually')).catch(() => undefined);
-    } else {
-      await this.unsetWarning().catch(() => undefined);
+      return;
     }
+    if (source?.hidden === true && this.lostCapabilities.length > 0) {
+      await this.setWarning(this.homey.__('device.hidden_but_partial', {
+        count: String(this.lostCapabilities.length),
+      })).catch(() => undefined);
+      return;
+    }
+    await this.unsetWarning().catch(() => undefined);
   }
 
   /**

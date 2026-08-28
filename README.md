@@ -51,6 +51,13 @@ Stratégies gérées : `lut` (531 profils), `fixed` (134), `linear` (69) — soi
   l'app crée un appareil qui **remplace** le vôtre plutôt qu'un appareil qui s'y ajoute — et c'est
   aussi ce que fait *Device Capabilities*, la référence du store, avec son *Advanced Virtual
   Device*.
+- 🔴 **Masquer une source et l'exclure de l'Énergie sont deux gestes indépendants.** L'exclusion
+  règle l'arithmétique et ne coûte rien ; le masquage touche à l'interface et peut coûter des
+  fonctions. Le compagnon d'une lampe la remplace vraiment — il reprend gradation, teinte,
+  saturation, température — et masquer l'originale est alors sans perte. Pour tout le reste, le
+  compagnon n'est qu'un estimateur : masquer l'imprimante fait perdre ses niveaux d'encre, masquer
+  un pont Zigbee fait perdre son bouton d'appairage. L'app avertit désormais quand une source est
+  masquée alors que son compagnon ne la remplace pas.
 - 🔴 **L'exclusion de la source est manuelle.** Homey applique sa propre estimation forfaitaire à
   l'appareil source ; sans l'exclure, l'onglet Énergie compte deux fois le même appareil et le
   total devient *plus* faux qu'avant l'installation. **Une app ne peut pas le faire elle-même** :
