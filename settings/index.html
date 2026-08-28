@@ -12,6 +12,12 @@
   .row { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: 1px solid #eee; }
   .k { color: #666; }
   .v { font-weight: 600; }
+  .note { font-size: 12px; color: #666; line-height: 1.45; margin: 4px 0 10px; }
+  .u-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid #eee; font-size: 13px; }
+  .u-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .u-w { color: #666; font-variant-numeric: tabular-nums; }
+  .u-row select { font-size: 12px; padding: 3px 5px; }
+  .u-row.manual .u-name { font-weight: 600; }
   pre { background: #f6f6f6; border-radius: 6px; padding: 10px; font-size: 11px; max-height: 300px; overflow: auto; white-space: pre-wrap; }
   button { font-size: 14px; padding: 8px 14px; border-radius: 6px; border: 1px solid #ccc; background: #fafafa; cursor: pointer; }
 </style>
@@ -22,6 +28,14 @@
 <div class="row"><span class="k">Appareils estimables</span><span class="v" id="st-candidates">…</span></div>
 
 <p><button id="st-refresh" type="button">Recharger la bibliothèque</button></p>
+
+<h2>Usage des appareils</h2>
+<p class="note">
+  Le diagramme de flux range chaque appareil par usage. Le rangement automatique se fonde sur la
+  classe Homey, qui ne sait rien d’un onduleur ou d’un module encastré : ceux-là finissent dans
+  « Prises&nbsp;&amp;&nbsp;divers », qui devient le plus gros poste sans rien apprendre. Corrigez-les ici.
+</p>
+<div id="st-usages">…</div>
 
 <h2>Journal</h2>
 <pre id="st-trace">…</pre>
@@ -42,6 +56,45 @@
         set('st-candidates', status.estimable + ' sur ' + status.candidates);
       });
 
+
+      Homey.api('GET', '/usages', null, function (err, data) {
+        var box = document.getElementById('st-usages');
+        if (err) { box.textContent = 'erreur : ' + err; return; }
+        box.innerHTML = '';
+        data.devices.forEach(function (d) {
+          var row = document.createElement('div');
+          row.className = 'u-row' + (d.manual ? ' manual' : '');
+
+          var name = document.createElement('span');
+          name.className = 'u-name';
+          name.textContent = d.name + (d.zone ? ' — ' + d.zone : '');
+          row.appendChild(name);
+
+          var w = document.createElement('span');
+          w.className = 'u-w';
+          w.textContent = (d.watts >= 10 ? d.watts.toFixed(1) : d.watts.toFixed(2)) + ' W';
+          row.appendChild(w);
+
+          var sel = document.createElement('select');
+          var auto = document.createElement('option');
+          auto.value = '';
+          // On montre ce que le rangement automatique a décidé : sans ça, « automatique » ne dit
+          // pas où l'appareil atterrit, et l'utilisateur ne sait pas s'il doit corriger.
+          auto.textContent = 'Automatique (' + d.categoryLabel + ')';
+          sel.appendChild(auto);
+          data.categories.forEach(function (c) {
+            var o = document.createElement('option');
+            o.value = c.id; o.textContent = c.label;
+            if (d.manual && d.categoryId === c.id) o.selected = true;
+            sel.appendChild(o);
+          });
+          sel.addEventListener('change', function () {
+            Homey.api('PUT', '/usages', { deviceId: d.id, categoryId: sel.value }, function () { load(); });
+          });
+          row.appendChild(sel);
+          box.appendChild(row);
+        });
+      });
 
       Homey.api('GET', '/trace', null, function (err, lines) {
         set('st-trace', err ? String(err) : (lines.length ? lines.join('\n') : 'rien à signaler'));

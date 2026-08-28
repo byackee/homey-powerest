@@ -225,7 +225,14 @@
     }
 
     function load() {
-      call('GET', '/').then(function (m) {
+      // `Homey.getSettings()` est SYNCHRONE dans un widget, contrairement à `Homey.api`.
+      var grouping = 'category+zone';
+      try {
+        var st = Homey.getSettings() || {};
+        if (typeof st.grouping === 'string' && st.grouping !== '') grouping = st.grouping;
+      } catch (e) { /* réglage indisponible : la vue croisée fait un défaut acceptable */ }
+
+      call('GET', '/?grouping=' + encodeURIComponent(grouping)).then(function (m) {
         if (!m) { fail('aucune donnée'); return; }
         var pct = m.total ? Math.round(m.unmeasured / m.total * 100) : 0;
         document.getElementById('hero').innerHTML = fmt(m.total) + '<span class="u">W</span>';

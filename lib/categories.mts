@@ -83,8 +83,43 @@ const BY_DEVICE_TYPE: Readonly<Record<string, Category>> = {
   camera: { id: 'security', label: 'Capteurs & sécurité' },
 };
 
-/** Range un appareil. Le type du profil mesuré l'emporte quand il existe. */
-export function categorise(deviceClass: string | null | undefined, deviceType?: string | null): Category {
+/**
+ * Toutes les catégories proposables, dans l'ordre d'un menu.
+ *
+ * Sert à la fois au diagramme et à la page de réglages : une seule liste, donc pas de menu qui
+ * propose un usage que le modèle ne connaît pas.
+ */
+export const CATEGORIES: readonly Category[] = [
+  { id: 'light', label: 'Éclairage' },
+  { id: 'appliance', label: 'Électroménager' },
+  { id: 'media', label: 'Multimédia' },
+  { id: 'climate', label: 'Climat & air' },
+  { id: 'office', label: 'Bureautique & réseau' },
+  { id: 'security', label: 'Capteurs & sécurité' },
+  UNKNOWN_CATEGORY,
+];
+
+/** La catégorie portant cet identifiant, ou `null` si l'identifiant n'en désigne aucune. */
+export function categoryById(id: string | null | undefined): Category | null {
+  if (typeof id !== 'string' || id === '') return null;
+  return CATEGORIES.find((c) => c.id === id) ?? null;
+}
+
+/**
+ * Range un appareil.
+ *
+ * L'ordre de priorité est celui de la certitude : le choix EXPLICITE de l'utilisateur d'abord —
+ * lui seul sait ce qui est branché sur une prise —, puis le type du profil mesuré, puis la classe
+ * Homey. Sans le premier niveau, un onduleur ou un module encastré resterait à jamais dans
+ * « Prises & divers », qui devient alors le plus gros poste du diagramme sans rien apprendre.
+ */
+export function categorise(
+  deviceClass: string | null | undefined,
+  deviceType?: string | null,
+  override?: string | null,
+): Category {
+  const chosen = categoryById(override);
+  if (chosen) return chosen;
   if (deviceType) {
     const byType = BY_DEVICE_TYPE[deviceType];
     if (byType) return byType;

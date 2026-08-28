@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  buildSankey, LEAF_NODES, SOURCE_ID, TINY_ZONE_ID, UNMEASURED_ID, type FlowDevice,
+  buildSankey, GROUPINGS, LEAF_NODES, SOURCE_ID, TINY_ZONE_ID, UNMEASURED_ID, type FlowDevice,
 } from '../lib/sankey.mjs';
 
 const dev = (
@@ -165,5 +165,65 @@ test('aucun lien ne pointe vers un nœud absent', () => {
   for (const l of m.links) {
     assert.ok(ids.has(l.from), `lien depuis un nœud absent : ${l.from}`);
     assert.ok(ids.has(l.to), `lien vers un nœud absent : ${l.to}`);
+  }
+});
+
+test('groupement par usage seul : trois niveaux, aucune pièce', () => {
+  const m = buildSankey(REAL, { grouping: GROUPINGS['category'] });
+  const depths = new Set(m.nodes.map((n) => n.depth));
+  assert.deepEqual([...depths].sort(), [0, 1, 2]);
+  assert.ok(!m.nodes.some((n) => n.label === 'Salon' || n.label === 'Cuisine'));
+  assert.ok(m.nodes.some((n) => n.id === 'cat:light'));
+  // Les appareils sont accrochés directement à leur usage.
+  assert.ok(m.links.some((l) => l.from === 'cat:media' && l.to === 'device:tv'));
+});
+
+test('groupement par pièce seul : aucune catégorie', () => {
+  const m = buildSankey(REAL, { grouping: GROUPINGS['zone'] });
+  assert.ok(!m.nodes.some((n) => n.id.startsWith('cat:')), 'une catégorie subsiste');
+  assert.ok(m.nodes.some((n) => n.id === 'zone:Salon'));
+  assert.ok(m.links.some((l) => l.from === SOURCE_ID && l.to === 'zone:Salon'));
+  assert.ok(m.links.some((l) => l.from === 'zone:Salon' && l.to === 'device:tv'));
+});
+
+test('les flux se conservent quel que soit le groupement', () => {
+  for (const key of ['category+zone', 'category', 'zone']) {
+    const m = buildSankey(REAL, { grouping: GROUPINGS[key] });
+    assert.ok(Math.abs(out(m, SOURCE_ID) - m.total) < 0.01, `${key} : la source ne distribue pas son total`);
+    for (const n of m.nodes.filter((x) => x.depth > 0 && !LEAF_NODES.has(x.id))) {
+      const hasOut = m.links.some((l) => l.from === n.id);
+      assert.ok(Math.abs(into(m, n.id) - n.watts) < 0.01, `${key} / ${n.label} : entrée ≠ valeur`);
+      if (hasOut) assert.ok(Math.abs(out(m, n.id) - n.watts) < 0.01, `${key} / ${n.label} : sortie ≠ valeur`);
+    }
+  }
+});
+
+test('le total est le même quel que soit le groupement : c’est le même logement', () => {
+  const a = buildSankey(REAL, { grouping: GROUPINGS['category+zone'] });
+  const b = buildSankey(REAL, { grouping: GROUPINGS['category'] });
+  const c = buildSankey(REAL, { grouping: GROUPINGS['zone'] });
+  assert.equal(a.total, b.total);
+  assert.equal(b.total, c.total);
+  assert.equal(a.measured, c.measured);
+});
+
+test('seul le groupement croisé produit un graphe non arborescent', () => {
+  // Un nœud recevant plus d'un flux est la définition d'un croisement possible.
+  const multi = (key: string): number => {
+    const m = buildSankey(REAL, { grouping: GROUPINGS[key] });
+    return m.nodes.filter((n) => m.links.filter((l) => l.to === n.id).length > 1).length;
+  };
+  assert.ok(multi('category+zone') > 0, 'le croisé devrait produire des convergences');
+  assert.equal(multi('category'), 0);
+  assert.equal(multi('zone'), 0);
+});
+
+test('la branche non mesurée reste juste après le compteur dans tous les cas', () => {
+  for (const key of ['category+zone', 'category', 'zone']) {
+    const m = buildSankey(REAL, { grouping: GROUPINGS[key] });
+    const branch = m.nodes.find((n) => n.id === UNMEASURED_ID);
+    assert.ok(branch, `${key} : branche absente`);
+    assert.equal(branch.depth, 1);
+    assert.ok(m.links.some((l) => l.from === SOURCE_ID && l.to === UNMEASURED_ID));
   }
 });

@@ -15,6 +15,7 @@ import type PowerEstimateApp from './app.mjs';
 
 interface Request {
   homey: { app: unknown };
+  body?: unknown;
 }
 
 function appOf(request: Request): PowerEstimateApp {
@@ -77,5 +78,23 @@ export default {
 
   async getTrace({ homey }: Request): Promise<string[]> {
     return appOf({ homey }).getTrace();
+  },
+
+  async getUsages({ homey }: Request): Promise<{
+    categories: ReadonlyArray<{ id: string; label: string }>;
+    devices: ReturnType<PowerEstimateApp['listUsages']>;
+  }> {
+    const app = appOf({ homey });
+    return { categories: app.availableCategories(), devices: app.listUsages() };
+  },
+
+  async setUsage({ homey, body }: Request): Promise<{ ok: true }> {
+    const payload = (body ?? {}) as { deviceId?: unknown; categoryId?: unknown };
+    if (typeof payload.deviceId !== 'string' || payload.deviceId === '') {
+      throw new Error('deviceId manquant');
+    }
+    const categoryId = typeof payload.categoryId === 'string' ? payload.categoryId : '';
+    appOf({ homey }).setCategoryOverride(payload.deviceId, categoryId === '' ? null : categoryId);
+    return { ok: true };
   },
 };

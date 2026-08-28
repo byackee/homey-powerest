@@ -13,14 +13,18 @@
 import type Homey from 'homey';
 
 import type PowerEstimateApp from '../../app.mjs';
-import type { SankeyModel } from '../../lib/sankey.mjs';
+import { GROUPINGS, type SankeyModel } from '../../lib/sankey.mjs';
 
 interface Request {
   homey: Homey.App['homey'];
+  query?: Record<string, string | undefined>;
 }
 
 export default {
-  async getFlow({ homey }: Request): Promise<SankeyModel> {
-    return (homey.app as PowerEstimateApp).energyFlow();
+  async getFlow({ homey, query }: Request): Promise<SankeyModel> {
+    // Le regroupement vient du réglage du widget. Une valeur inconnue retombe sur la vue croisée
+    // plutôt que d'échouer : un widget mal configuré doit afficher quelque chose.
+    const grouping = GROUPINGS[query?.['grouping'] ?? ''] ?? GROUPINGS['category+zone'];
+    return (homey.app as PowerEstimateApp).energyFlow(grouping);
   },
 };

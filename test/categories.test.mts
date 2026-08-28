@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { categorise, UNKNOWN_CATEGORY } from '../lib/categories.mjs';
+import { CATEGORIES, categorise, categoryById, UNKNOWN_CATEGORY } from '../lib/categories.mjs';
 
 test('les classes Homey courantes tombent dans une catégorie utile', () => {
   assert.equal(categorise('light').id, 'light');
@@ -39,4 +39,26 @@ test('les catégories restent peu nombreuses', () => {
   }
   // Au-delà de six ou sept branches, chacune devient trop fine pour porter son nom.
   assert.ok(ids.size <= 6, `trop de catégories : ${[...ids].join(', ')}`);
+});
+
+test('le choix explicite de l’utilisateur l’emporte sur tout', () => {
+  // Le cas qui motive ce réglage : un onduleur que Homey ne sait pas nommer, et qui pèse 100 W.
+  assert.equal(categorise('other', null, 'office').id, 'office');
+  assert.equal(categorise('light', 'light', 'appliance').id, 'appliance');
+  assert.equal(categorise('sensor', 'printer', 'media').id, 'media');
+});
+
+test('une surcharge vide ou fantaisiste ne casse pas le rangement automatique', () => {
+  assert.equal(categorise('light', null, '').id, 'light');
+  assert.equal(categorise('light', null, null).id, 'light');
+  assert.equal(categorise('light', null, 'pas_une_categorie').id, 'light');
+  assert.equal(categorise('sensor', 'printer', undefined).id, 'office');
+});
+
+test('le menu ne propose que des usages que le modèle connaît', () => {
+  for (const c of CATEGORIES) {
+    assert.equal(categoryById(c.id)?.id, c.id);
+    assert.equal(categorise('light', null, c.id).id, c.id, `${c.id} n'est pas applicable`);
+  }
+  assert.equal(categoryById('inexistant'), null);
 });

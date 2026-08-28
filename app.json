@@ -104,6 +104,16 @@
       "method": "GET",
       "path": "/trace",
       "role": "owner"
+    },
+    "getUsages": {
+      "method": "GET",
+      "path": "/usages",
+      "role": "owner"
+    },
+    "setUsage": {
+      "method": "PUT",
+      "path": "/usages",
+      "role": "owner"
     }
   },
   "esm": true,
@@ -343,7 +353,49 @@
         "fr": "Flux d'énergie",
         "nl": "Energiestroom"
       },
-      "settings": [],
+      "settings": [
+        {
+          "id": "grouping",
+          "type": "dropdown",
+          "value": "category+zone",
+          "title": {
+            "en": "Group by",
+            "fr": "Regrouper par",
+            "nl": "Groeperen op"
+          },
+          "hint": {
+            "en": "Usage then room is the only view where a room receives several usages, so the only one where ribbons cross. The other two answer a simpler question and read at a glance.",
+            "fr": "Usage puis pièce est la seule vue où une pièce reçoit plusieurs usages, donc la seule où les rubans se croisent. Les deux autres répondent à une question plus simple et se lisent d'un coup d'œil.",
+            "nl": "Gebruik dan kamer is de enige weergave waarin linten elkaar kruisen."
+          },
+          "values": [
+            {
+              "id": "category+zone",
+              "label": {
+                "en": "Usage, then room",
+                "fr": "Usage, puis pièce",
+                "nl": "Gebruik, dan kamer"
+              }
+            },
+            {
+              "id": "category",
+              "label": {
+                "en": "Usage only",
+                "fr": "Usage seulement",
+                "nl": "Alleen gebruik"
+              }
+            },
+            {
+              "id": "zone",
+              "label": {
+                "en": "Room only",
+                "fr": "Pièce seulement",
+                "nl": "Alleen kamer"
+              }
+            }
+          ]
+        }
+      ],
       "height": 460,
       "transparent": false,
       "api": {

@@ -20,7 +20,8 @@ import { HomeyApiHub, type DeviceSummary } from './runtime/hub.mjs';
 import { LibraryClient } from './runtime/library.mjs';
 import { isSelfUsageOnly, matchDevice, type LibraryIndex, type Match } from './lib/matching.mjs';
 import { SUPPORTED_STRATEGIES } from './lib/types.mjs';
-import { buildSankey, type FlowDevice, type SankeyModel } from './lib/sankey.mjs';
+import { buildSankey, type FlowDevice, type Grouping, type SankeyModel } from './lib/sankey.mjs';
+import { CATEGORIES, categorise, type Category } from './lib/categories.mjs';
 
 sourceMapSupport.install();
 
@@ -161,22 +162,35 @@ export default class PowerEstimateApp extends Homey.App {
    * Les appareils MASQUÉS sont conservés. Sur cette installation ce sont précisément eux qui
    * portent les estimations : les écarter viderait le diagramme de tout ce que l'app apporte.
    */
-  public energyFlow(): SankeyModel {
+  public energyFlow(grouping?: readonly Grouping[]): SankeyModel {
     const hub = this.getHub();
     const profileTypes = this.companionDeviceTypes();
+    const overrides = this.categoryOverrides();
 
-    const devices: FlowDevice[] = hub.listDevices()
-      .filter((device) => device.watts !== null)
-      .map((device) => ({
-        id: device.id,
-        name: device.name,
-        zoneName: device.zoneName,
-        watts: device.watts as number,
-        cumulative: device.cumulative,
-        deviceClass: device.class,
-        deviceType: (device.dataId !== null ? profileTypes.get(device.dataId) : undefined) ?? null,
-      }));
-    return buildSankey(devices);
+    const devices = hub.listDevices()
+      // Un appareil exclu de l'Énergie ne compte plus dans le total du logement : l'inclure ici
+      // rendrait le diagramme irréconciliable avec le compteur. Ce sont nos 30 sources masquées.
+      .filter((device) => !device.energyExcluded)
+      .map((device): FlowDevice | null => {
+        // La mesure d'abord ; à défaut, l'approximation forfaitaire de Homey, qui fait entrer un
+        // NAS ou une box dans l'Énergie sans qu'ils ne mesurent rien.
+        const measured = device.watts;
+        const watts = measured ?? device.approxWatts;
+        if (watts === null) return null;
+        return {
+          id: device.id,
+          name: device.name,
+          zoneName: device.zoneName,
+          watts,
+          cumulative: device.cumulative,
+          deviceClass: device.class,
+          deviceType: (device.dataId !== null ? profileTypes.get(device.dataId) : undefined) ?? null,
+          categoryOverride: overrides[device.id] ?? null,
+          approximated: measured === null,
+        };
+      })
+      .filter((device): device is FlowDevice => device !== null);
+    return buildSankey(devices, { grouping });
   }
 
   /**
@@ -205,6 +219,64 @@ export default class PowerEstimateApp extends Homey.App {
       this.record('flow!', ['lecture des profils des compagnons', err]);
     }
     return out;
+  }
+
+  /**
+   * Les usages choisis à la main, par identifiant d'appareil.
+   *
+   * Stockés au niveau de l'APP et non sur les appareils : les plus mal rangés ne sont justement
+   * pas les nôtres — un onduleur, un module encastré — et une app ne peut pas ajouter de réglage
+   * à l'appareil d'une autre. Un réglage porté par les compagnons aurait donc laissé le plus gros
+   * poste du diagramme inclassable.
+   */
+  public categoryOverrides(): Record<string, string> {
+    const raw = this.homey.settings.get('categoryOverrides') as unknown;
+    if (raw === null || typeof raw !== 'object') return {};
+    const out: Record<string, string> = {};
+    for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof value === 'string' && value !== '') out[id] = value;
+    }
+    return out;
+  }
+
+  /** Fixe ou efface l'usage d'un appareil. Une chaîne vide rend la main au rangement automatique. */
+  public setCategoryOverride(deviceId: string, categoryId: string | null): void {
+    const current = this.categoryOverrides();
+    if (categoryId === null || categoryId === '') delete current[deviceId];
+    else current[deviceId] = categoryId;
+    this.homey.settings.set('categoryOverrides', current);
+    this.record('flow', [`usage de ${deviceId} → ${categoryId ?? 'automatique'}`]);
+  }
+
+  /** Ce que la page de réglages affiche : chaque appareil mesuré, son usage, et d'où il vient. */
+  public listUsages(): Array<{
+    id: string; name: string; zone: string | null; watts: number;
+    categoryId: string; categoryLabel: string; manual: boolean;
+  }> {
+    const overrides = this.categoryOverrides();
+    const profileTypes = this.companionDeviceTypes();
+    return this.getHub().listDevices()
+      .filter((device) => device.watts !== null && !device.cumulative)
+      .map((device) => {
+        const override = overrides[device.id] ?? null;
+        const type = (device.dataId !== null ? profileTypes.get(device.dataId) : undefined) ?? null;
+        const category: Category = categorise(device.class, type, override);
+        return {
+          id: device.id,
+          name: device.name,
+          zone: device.zoneName,
+          watts: device.watts as number,
+          categoryId: category.id,
+          categoryLabel: category.label,
+          manual: override !== null,
+        };
+      })
+      .sort((a, b) => b.watts - a.watts);
+  }
+
+  /** La liste des usages proposables, pour que la page n'en invente aucun. */
+  public availableCategories(): readonly Category[] {
+    return CATEGORIES;
   }
 
   /** Journal circulaire consultable depuis la page de réglages. */

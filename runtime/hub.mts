@@ -59,7 +59,7 @@ interface ApiDevice {
   capabilitiesObj: Record<string, { value?: unknown } | undefined> | null;
   settings?: Record<string, unknown> | null;
   /** Objet Energy calculé par Homey. `cumulative` distingue un compteur général d'une charge. */
-  energyObj?: { cumulative?: boolean | null } | null;
+  energyObj?: { cumulative?: boolean | null; W?: number | null } | null;
   /** Données d'appairage. Seul identifiant qu'un driver et l'API partagent. */
   data?: { id?: string } | null;
   driverId?: string;
@@ -114,6 +114,16 @@ export interface DeviceSummary extends DeviceIdentity {
    * voit l'API de ce que sait le driver.
    */
   dataId: string | null;
+  /**
+   * Puissance forfaitaire attribuée par Homey aux appareils sans `measure_power`.
+   *
+   * C'est elle qui fait entrer un NAS ou une box dans l'onglet Énergie sans qu'ils ne mesurent
+   * rien. Les ignorer ferait passer leur consommation pour « non mesurée » alors qu'elle est
+   * comptée dans le total du logement.
+   */
+  approxWatts: number | null;
+  /** Vrai quand l'utilisateur a exclu l'appareil de l'onglet Énergie : il ne compte plus. */
+  energyExcluded: boolean;
 }
 
 /** Un abonnement vivant à une capability d'une source. */
@@ -324,6 +334,8 @@ export class HomeyApiHub extends EventEmitter {
       watts: typeof power === 'number' && Number.isFinite(power) ? power : null,
       cumulative: (device.energyObj ?? {})?.cumulative === true,
       dataId: typeof device.data?.id === 'string' ? device.data.id : null,
+      approxWatts: typeof (device.energyObj ?? {})?.W === 'number' ? (device.energyObj as { W: number }).W : null,
+      energyExcluded: (device.settings ?? {})['energy_exclude'] === true,
       hidden: (device as unknown as { hidden?: boolean }).hidden === true,
     };
   }

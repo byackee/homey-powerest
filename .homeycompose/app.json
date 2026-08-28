@@ -103,6 +103,16 @@
       "method": "GET",
       "path": "/trace",
       "role": "owner"
+    },
+    "getUsages": {
+      "method": "GET",
+      "path": "/usages",
+      "role": "owner"
+    },
+    "setUsage": {
+      "method": "PUT",
+      "path": "/usages",
+      "role": "owner"
     }
   }
 }
