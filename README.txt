@@ -1,12 +1,13 @@
-Homey already lets you give a device a fixed power figure, and for a kettle or a router that is
-exactly right — if a device offers those settings, use them, it is simpler than this app. What a
-single number cannot do is follow a dimmer. A bulb at a tenth of its brightness draws a fraction
-of what it draws at full, and its colour changes the answer again. Power Estimator replaces that
-one figure with a measurement that follows the device. It matches your devices
-against the profiles of the PowerCalc library, thousands of readings taken with a wattmeter on
-real hardware, and follows the state of each device to work out what it is drawing right now. A
-dimmable bulb that Homey counted as a flat 6.5 W turns out to draw 0.9 W at a tenth and 4.5 W at
-full brightness.
+Homey already lets you give a device a power figure for on and one for off, and it scales between
+those two with the dimmer — if a device offers those settings, use them, it is simpler than this
+app. What that straight line cannot do is match the curve of a real LED, and it takes no notice of
+colour at all. A white ambiance spot with 6.5 W typed in from the box, dimmed to 30 %, is counted
+at 2.2 W where the wattmeter reads 1.2 W; a colour bulb at full brightness draws anywhere between
+1.6 W and 5.3 W depending on the hue you chose, and no pair of numbers can express that. Power
+Estimator replaces the straight line with a measurement. It matches your devices against the
+profiles of the PowerCalc library, thousands of readings taken with a wattmeter on real hardware,
+and follows the state of each device — brightness, colour temperature, hue — to work out what it
+is drawing right now.
 
 The device it creates does not sit beside the original: it takes over its controls. Switch it on,
 dim it, change its colour from the new tile, and the real lamp follows, so you keep one device to

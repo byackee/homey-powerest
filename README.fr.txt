@@ -1,11 +1,13 @@
-Homey permet déjà de fixer une puissance sur un appareil, et pour une bouilloire ou une box c'est
-exactement ce qu'il faut — si l'appareil propose ce réglage, utilisez-le, c'est plus simple que
-cette app. Ce qu'une valeur unique ne peut pas faire, c'est suivre une gradation. Une ampoule au
-dixième de sa luminosité tire une fraction de ce qu'elle tire à fond, et sa couleur change encore
-la réponse. Power Estimator remplace ce chiffre unique par une mesure qui suit l'appareil. Il rapproche vos appareils des profils de la bibliothèque PowerCalc — des milliers
-de relevés pris au wattmètre sur du vrai matériel — et suit l'état de chacun pour établir ce qu'il
-tire à l'instant. Une ampoule gradable que Homey comptait 6,5 W en forfait se révèle tirer 0,9 W
-au dixième et 4,5 W à pleine luminosité.
+Homey permet déjà de fixer une puissance à l'allumage et une à l'extinction, et il interpole entre
+les deux selon la gradation — si l'appareil propose ces réglages, utilisez-les, c'est plus simple
+que cette app. Ce que cette droite ne sait pas faire, c'est épouser la courbe d'une vraie LED, et
+elle ignore complètement la couleur. Un spot blanc réglé à 6,5 W d'après le carton et gradué à
+30 % est compté 2,2 W là où le wattmètre lit 1,2 W ; une ampoule couleur à pleine luminosité tire
+entre 1,6 W et 5,3 W selon la teinte choisie, et aucun couple de valeurs ne peut exprimer cela.
+Power Estimator remplace la droite par une mesure. Il rapproche vos appareils des profils de la
+bibliothèque PowerCalc — des milliers de relevés pris au wattmètre sur du vrai matériel — et suit
+l'état de chacun, luminosité, température de couleur et teinte comprises, pour établir ce qu'il
+tire à l'instant.
 
 L'appareil créé ne s'ajoute pas à l'original : il en reprend les commandes. Allumez-le, graduez-le,
 changez sa couleur depuis la nouvelle tuile, la vraie lampe suit — vous gardez un appareil à

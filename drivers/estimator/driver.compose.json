@@ -156,9 +156,9 @@
         "nl": "Waarschuw als de bron niet is uitgesloten van Energie"
       },
       "hint": {
-        "en": "Homey applies its own flat estimate to the source device, so Energy would count it twice. Homey does not let an app change another app's settings, so you must tick 'Exclude from Energy' on the source yourself. This device warns you until you have.",
-        "fr": "Homey applique sa propre estimation forfaitaire à la source, que l'onglet Énergie compterait donc deux fois. Homey n'autorise pas une app à modifier les réglages d'une autre : c'est à vous de cocher « Exclure de l'Énergie » sur la source. Cet appareil vous avertit tant que ce n'est pas fait.",
-        "nl": "Homey past een eigen vaste schatting toe op de bron, die Energie dan dubbel telt. Homey staat een app niet toe instellingen van een andere app te wijzigen: vink 'Uitsluiten van Energie' zelf aan op de bron."
+        "en": "Homey applies its own estimate to the source device, so Energy would count it twice. Homey does not let an app change another app's settings, so you must tick 'Exclude from Energy' on the source yourself. This device warns you until you have.",
+        "fr": "Homey applique sa propre estimation à la source, que l'onglet Énergie compterait donc deux fois. Homey n'autorise pas une app à modifier les réglages d'une autre : c'est à vous de cocher « Exclure de l'Énergie » sur la source. Cet appareil vous avertit tant que ce n'est pas fait.",
+        "nl": "Homey past een eigen schatting toe op de bron, die Energie dan dubbel telt. Homey staat een app niet toe instellingen van een andere app te wijzigen: vink 'Uitsluiten van Energie' zelf aan op de bron."
       }
     },
     {

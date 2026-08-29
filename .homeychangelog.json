@@ -25,8 +25,8 @@
     "nl": "De instellingenpagina en het koppelscherm zijn nu ook vertaald."
   },
   "1.0.5": {
-    "en": "Narrows the description after feedback on the forum. Homey already lets you set a fixed power figure on many devices; what it cannot do is follow a dimmer. That is what this app is for.",
-    "fr": "Resserre la description après un retour sur le forum. Homey permet déjà de fixer une valeur sur beaucoup d'appareils ; ce qu'il ne sait pas faire, c'est suivre une gradation. C'est à cela que sert cette app.",
-    "nl": "Scherpt de beschrijving aan na feedback op het forum. Homey kan al een vaste waarde instellen; wat het niet kan, is een dimmer volgen."
+    "en": "Corrects the description after feedback on the forum. Homey does not count a dimmed light flat: it interpolates between the on and off figures you set. What that straight line misses is the curve of a real LED, and colour, which it ignores entirely. That is what this app is for.",
+    "fr": "Corrige la description après un retour sur le forum. Homey ne compte pas une lampe graduée en forfait : il interpole entre les valeurs allumé et éteint que vous saisissez. Ce que cette droite rate, c'est la courbe d'une vraie LED, et la couleur, qu'elle ignore complètement. C'est à cela que sert cette app.",
+    "nl": "Corrigeert de beschrijving na feedback op het forum. Homey telt een gedimde lamp niet vast: het interpoleert tussen de aan- en uit-waarden die u instelt. Wat die rechte lijn mist, is de curve van een echte led en de kleur, die volledig genegeerd wordt."
   }
 }

@@ -1,12 +1,12 @@
-Homey laat u al een vast vermogen instellen, en voor een waterkoker of een router klopt dat precies
-— biedt een apparaat die instelling, gebruik die dan, dat is eenvoudiger dan deze app. Wat één
-getal niet kan, is een dimmer volgen. Een lamp op een tiende trekt een fractie van wat zij op vol
-trekt, en de kleur verandert het antwoord opnieuw. Power Estimator vervangt dat ene getal door een
-meting die het apparaat volgt. Het legt
-uw apparaten naast de profielen van de PowerCalc-bibliotheek — duizenden metingen met een
-wattmeter op echte apparaten — en volgt de toestand van elk apparaat om te bepalen wat het nu
-trekt. Een dimbare lamp die Homey op een vaste 6,5 W zette, blijkt 0,9 W te trekken op een tiende
-en 4,5 W op vol.
+Homey laat u al een vermogen instellen voor aan en een voor uit, en interpoleert daartussen met de
+dimmer — biedt een apparaat die instellingen, gebruik ze dan, dat is eenvoudiger dan deze app. Wat
+die rechte lijn niet kan, is de curve van een echte led volgen, en kleur telt helemaal niet mee.
+Een witte spot met 6,5 W van de verpakking, gedimd tot 30 %, wordt geteld als 2,2 W terwijl de
+wattmeter 1,2 W leest; een kleurenlamp op vol trekt tussen 1,6 W en 5,3 W afhankelijk van de
+gekozen kleur, en geen enkel paar getallen kan dat uitdrukken. Power Estimator vervangt die rechte
+lijn door een meting. Het legt uw apparaten naast de profielen van de PowerCalc-bibliotheek —
+duizenden metingen met een wattmeter op echte apparaten — en volgt de toestand van elk apparaat,
+inclusief helderheid, kleurtemperatuur en tint, om te bepalen wat het nu trekt.
 
 Het aangemaakte apparaat komt niet naast het origineel: het neemt de bediening over. Schakel het
 in, dim het, verander de kleur vanaf de nieuwe tegel en de echte lamp volgt, zodat u één apparaat

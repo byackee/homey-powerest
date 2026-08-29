@@ -13,9 +13,9 @@
     "nl": "Power Estimator"
   },
   "description": {
-    "en": "Power that follows dimming and colour, from measured device profiles — where one fixed figure cannot be right",
-    "fr": "Une puissance qui suit la gradation et la couleur, à partir de profils mesurés — là où une valeur fixe ne peut pas être juste",
-    "nl": "Vermogen dat het dimniveau en de kleur volgt, uit gemeten profielen — waar één vaste waarde niet kan kloppen"
+    "en": "Power that follows the real curve of a device, and its colour, from profiles measured with a wattmeter",
+    "fr": "Une puissance qui suit la vraie courbe d'un appareil, et sa couleur, à partir de profils mesurés au wattmètre",
+    "nl": "Vermogen dat de echte curve van een apparaat en zijn kleur volgt, uit met een wattmeter gemeten profielen"
   },
   "category": [
     "tools",
