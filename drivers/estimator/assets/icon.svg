@@ -1,5 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <path d="M146 16 L74 142 h44 l-14 98 78 -132 h-46 z" fill="#000000"/>
-  <path d="M40 196 a108 108 0 1 1 24 22" fill="none" stroke="#000000" stroke-width="12" stroke-linecap="round" opacity="0.35"/>
+<!--
+  Icône du driver : un module wattmètre en vue trois quarts.
+
+  Elle ne doit PAS reprendre l'icône de l'app (un éclair) : Athom refuse la certification quand
+  les deux sont identiques, parce que l'utilisateur ne distingue plus le driver dans la liste
+  d'ajout d'appareil. Les règles de l'App Store demandent ici un dessin vectoriel, sur fond
+  transparent, fait de lignes et d'angles — donc aucun aplat, aucun dégradé, aucun fond.
+
+  Les faces arrière sont des chemins distincts de la face avant : un contour fermé unique aurait
+  redessiné les arêtes communes, qui ressortent alors deux fois plus épaisses.
+
+  Le cadran est un ARC ouvert et non un cercle : un cercle avec une aiguille se lit comme une
+  horloge, ce que le rendu à 64 px a confirmé.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="960" viewBox="0 0 960 960">
+  <g fill="none" stroke="#000000" stroke-width="38" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Face supérieure. -->
+    <path d="M150 300 L300 180 H810 L660 300"/>
+    <!-- Face droite : c'est l'angle qui donne le volume. -->
+    <path d="M810 180 V690 L660 810"/>
+    <!-- Face avant. -->
+    <rect x="150" y="300" width="510" height="510" rx="16"/>
+    <!-- Cadran gradué. -->
+    <path d="M251 604 A160 160 0 0 1 559 604"/>
+    <!-- Aiguille. -->
+    <path d="M405 645 L474 547"/>
+  </g>
 </svg>

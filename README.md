@@ -41,6 +41,25 @@ donne 84 W**.
 Stratégies gérées : `lut` (531 profils), `fixed` (134), `linear` (69) — soit 734 des 744.
 `composite` et `multi_switch` (10 profils) ne le sont pas.
 
+## Pourquoi la permission `homey:manager:api`
+
+Une app Homey ne voit, par le SDK, que **ses propres** appareils. Or tout le propos de celle-ci
+est de mesurer ceux des **autres** apps : la lampe Hue, la prise Tuya, l'imprimante. Il n'existe
+pas d'API plus étroite pour cela — `homey:manager:api` est la seule qui ouvre `HomeyAPI.createAppAPI()`.
+
+Elle sert à quatre choses, et à rien d'autre :
+
+| Appel | À quoi il sert |
+| --- | --- |
+| `devices.getDevices()`, `zones.getZones()` | Lister les appareils candidats à l'appairage, et lire leur pièce pour le diagramme de flux. |
+| `device.makeCapabilityInstance()` | S'abonner à `onoff`, `dim`, `light_hue`, `light_saturation`, `light_temperature` de la source. C'est ce qui fait que l'estimation suit l'appareil en temps réel plutôt qu'un sondage. |
+| `device.setCapabilityValue()` | Renvoyer vers la source ce que l'utilisateur fait sur la tuile du compagnon, qui la remplace. |
+| `devices.setDeviceSettings()` | Tenter de poser `energy_exclude` sur la source pour éviter le double comptage. Refusé aujourd'hui faute de scope (voir plus bas) ; l'app se rabat sur la lecture et un avertissement. |
+
+Aucun autre manager n'est touché : ni Flow, ni utilisateurs, ni système, ni cloud. Le client est
+confiné à `runtime/hub.mts`, seul module du projet qui importe `homey-api`, et il est détruit à
+l'arrêt de l'app. Un plancher de 60 s entre deux `getDevices()` réseau protège le quota d'Athom.
+
 ## Limites connues, et pourquoi
 
 - 🔴 **`measure_power` ne peut pas être ajouté à l'appareil d'origine.** Aucune API n'ajoute de

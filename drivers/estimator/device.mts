@@ -129,25 +129,39 @@ export default class EstimatorDevice extends Homey.Device {
     }
   }
 
-  public override async onSettings({ changedKeys }: {
+  public override async onSettings({ newSettings, changedKeys }: {
     oldSettings: Record<string, unknown>;
     newSettings: Record<string, unknown>;
     changedKeys: string[];
   }): Promise<void> {
     if (changedKeys.includes('exclude_source')) {
-      // `newSettings` n'est pas encore visible via `getSetting` au moment de ce rappel : on lit la
-      // valeur qui vient d'être validée plutôt que l'ancienne.
-      await this.applyExclusion();
+      await this.applyExclusion(newSettings);
     }
     if (changedKeys.includes('mode')) {
       // Repasser en mode profil doit pouvoir déclencher le téléchargement qu'on avait évité.
-      await this.loadProfile();
+      await this.loadProfile(newSettings);
       return;
     }
     const recomputeKeys = ['min_mired', 'max_mired', 'power_off', 'power_on', 'power_min', 'power_max'];
     if (changedKeys.some((key) => recomputeKeys.includes(key))) {
-      await this.recompute(Date.now());
+      await this.recompute(Date.now(), newSettings);
     }
+  }
+
+  /**
+   * Lit un réglage, en préférant celui qui vient d'être soumis quand il y en a un.
+   *
+   * ⚠️ Pendant `onSettings`, `getSetting` rend encore l'ANCIENNE valeur : le SDK n'écrit les
+   * nouveaux réglages qu'une fois le rappel revenu sans erreur. Tout ce que `onSettings`
+   * déclenche doit donc lire `newSettings`, sinon le changement s'applique avec un cran de
+   * retard — passer en mode « fixe » rechargeait un profil au nom de l'ancien mode, et la
+   * puissance saisie ne prenait effet qu'au tick suivant.
+   *
+   * `pending` est absent partout ailleurs (démarrage, tick, reprise après échec), où les réglages
+   * persistés SONT la vérité.
+   */
+  private setting(key: string, pending?: Record<string, unknown>): unknown {
+    return pending !== undefined && key in pending ? pending[key] : this.getSetting(key);
   }
 
   /**
@@ -196,11 +210,11 @@ export default class EstimatorDevice extends Homey.Device {
   }
 
   /** Charge le profil, puis branche les abonnements. Réessaie tant que le réseau manque. */
-  private async loadProfile(): Promise<void> {
+  private async loadProfile(pending?: Record<string, unknown>): Promise<void> {
     const manufacturer = String(this.getStoreValue('manufacturer') ?? '');
     const model = String(this.getStoreValue('model') ?? '');
-    const wantsProfile = this.getSetting('mode') !== 'fixed'
-      && this.getSetting('mode') !== 'linear'
+    const mode = this.setting('mode', pending);
+    const wantsProfile = mode !== 'fixed' && mode !== 'linear'
       && manufacturer !== '' && model !== '';
 
     // En saisie manuelle, la bibliothèque n'a rien à dire : ni téléchargement, ni indisponibilité
@@ -208,9 +222,9 @@ export default class EstimatorDevice extends Homey.Device {
     if (!wantsProfile) {
       this.profile = null;
       await this.attach();
-      await this.applyExclusion();
+      await this.applyExclusion(pending);
       await this.setAvailable();
-      await this.recompute(Date.now());
+      await this.recompute(Date.now(), pending);
       return;
     }
 
@@ -225,9 +239,9 @@ export default class EstimatorDevice extends Homey.Device {
       this.profileBackoff = PROFILE_RETRY_MIN_MS;
 
       await this.attach();
-      await this.applyExclusion();
+      await this.applyExclusion(pending);
       await this.setAvailable();
-      await this.recompute(Date.now());
+      await this.recompute(Date.now(), pending);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.app.note('prof!', `${this.getName()} : ${message}`);
@@ -318,8 +332,8 @@ export default class EstimatorDevice extends Homey.Device {
    * L'avertissement disparaît donc tout seul dès que l'utilisateur a coché la case, sans qu'il
    * ait à revenir ici.
    */
-  private async applyExclusion(): Promise<void> {
-    const wanted = this.getSetting('exclude_source') !== false;
+  private async applyExclusion(pending?: Record<string, unknown>): Promise<void> {
+    const wanted = this.setting('exclude_source', pending) !== false;
 
     try {
       await this.app.getHub().setDeviceSettings(this.sourceId, { energy_exclude: wanted });
@@ -329,7 +343,7 @@ export default class EstimatorDevice extends Homey.Device {
       this.app.note('excl?', `écriture refusée sur ${this.sourceId} — ${detail}`);
     }
 
-    await this.checkExclusion();
+    await this.checkExclusion(pending);
   }
 
   /**
@@ -340,8 +354,8 @@ export default class EstimatorDevice extends Homey.Device {
    * l'installation — c'est le seul état où l'app nuit, donc le seul qui mérite un avertissement
    * permanent sur la tuile.
    */
-  private async checkExclusion(): Promise<void> {
-    const wanted = this.getSetting('exclude_source') !== false;
+  private async checkExclusion(pending?: Record<string, unknown>): Promise<void> {
+    const wanted = this.setting('exclude_source', pending) !== false;
     const source = this.app.getHub().getDevice(this.sourceId);
     const actual = (source?.settings ?? {})['energy_exclude'] === true;
 
@@ -387,16 +401,16 @@ export default class EstimatorDevice extends Homey.Device {
    * nouvelle. Intégrer avec la nouvelle attribuerait rétroactivement la consommation d'une lampe
    * qu'on vient d'allumer à la période où elle était éteinte.
    */
-  private async recompute(now: number): Promise<void> {
+  private async recompute(now: number, pending?: Record<string, unknown>): Promise<void> {
     // Le mode manuel fabrique un `ProfileModel` que le moteur traite comme n'importe quel profil :
     // une seule implémentation des stratégies, donc un seul endroit où un défaut peut se cacher.
-    const mode = effectiveMode(this.getSetting('mode'), this.profile !== null);
+    const mode = effectiveMode(this.setting('mode', pending), this.profile !== null);
     const manual = manualModel({
       mode,
-      powerOff: this.getSetting('power_off'),
-      powerOn: this.getSetting('power_on'),
-      powerMin: this.getSetting('power_min'),
-      powerMax: this.getSetting('power_max'),
+      powerOff: this.setting('power_off', pending),
+      powerOn: this.setting('power_on', pending),
+      powerMin: this.setting('power_min', pending),
+      powerMax: this.setting('power_max', pending),
     });
 
     const model = manual ?? this.profile?.model ?? null;
@@ -406,8 +420,8 @@ export default class EstimatorDevice extends Homey.Device {
     let watts = 0;
     try {
       const state = toLightState(this.readState(), {
-        minMired: numberSetting(this.getSetting('min_mired')),
-        maxMired: numberSetting(this.getSetting('max_mired')),
+        minMired: numberSetting(this.setting('min_mired', pending)),
+        maxMired: numberSetting(this.setting('max_mired', pending)),
       });
       watts = computePower(model, tables, state).watts;
     } catch (err) {

@@ -29,22 +29,29 @@
 
 <p><button id="st-refresh" type="button"></button></p>
 
-<h2>Usage des appareils</h2>
-<p class="note">
-  Le diagramme de flux range chaque appareil par usage. Le rangement automatique se fonde sur la
-  classe Homey, qui ne sait rien d’un onduleur ou d’un module encastré : ceux-là finissent dans
-  « Prises&nbsp;&amp;&nbsp;divers », qui devient le plus gros poste sans rien apprendre. Corrigez-les ici.
-</p>
+<h2 id="t-usages"></h2>
+<p class="note" id="t-usages-note"></p>
+<p class="note" id="t-powered-note"></p>
 <div id="st-usages">…</div>
 
-<h2>Journal</h2>
+<h2 id="t-log"></h2>
 <pre id="st-trace">…</pre>
 
 <script type="text/javascript">
   function onHomeyReady(Homey) {
     'use strict';
 
-    function set(id, text) { document.getElementById(id).textContent = text; }
+    // Tolérant à l'id absent : une seule cible manquante interrompait `fillLabels`, et la page
+    // restait alors bloquée sur les libellés écrits en dur dans le HTML.
+    function set(id, text) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = text;
+    }
+
+    function setHtml(id, markup) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = markup;
+    }
 
     /**
      * Traduction.
@@ -67,9 +74,9 @@
       set('t-estimable', t('settings.estimable'));
       set('t-usages', t('settings.usages_title'));
       set('t-log', t('settings.log'));
-      document.getElementById('st-refresh').textContent = t('settings.reload');
-      document.getElementById('t-usages-note').innerHTML = t('settings.usages_note');
-      document.getElementById('t-powered-note').innerHTML = t('settings.powered_note');
+      set('st-refresh', t('settings.reload'));
+      setHtml('t-usages-note', t('settings.usages_note'));
+      setHtml('t-powered-note', t('settings.powered_note'));
     }
 
     function load() {
