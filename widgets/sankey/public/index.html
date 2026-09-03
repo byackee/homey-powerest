@@ -76,7 +76,10 @@
     <div class="hero" id="hero">—<span class="u">W</span></div>
     <div class="sub" id="sub"></div>
   </div>
-  <svg id="svg" preserveAspectRatio="none"></svg>
+  <!-- Pas de `preserveAspectRatio="none"` : le viewBox est désormais aux dimensions réelles en
+       pixels, donc l'échelle vaut 1 dans les deux sens. Le laisser masquerait une future
+       discordance en déformant en silence, au lieu de la rendre visible. -->
+  <svg id="svg"></svg>
   <div id="tip"></div>
 </div>
 
@@ -84,7 +87,57 @@
   function onHomeyReady(Homey) {
     'use strict';
 
-    var W = 1000, LABEL_ROOM = 206, NODE_W = 8, NODE_PAD = 7;
+    /**
+     * Le dessin travaille en PIXELS RÉELS, pas dans un repère abstrait.
+     *
+     * La largeur était figée à 1000 unités et le SVG étiré à la largeur du widget avec
+     * `preserveAspectRatio="none"`. Sur un widget de 360 px, l'échelle valait 0,36 en horizontal
+     * et 1 en vertical : le texte était écrasé aux deux tiers, et son halo — 3,5 px en vertical,
+     * 1,3 px en horizontal — se lisait comme une ombre portée. Un repère abstrait n'a de sens que
+     * si les deux axes portent la même unité ; ici la hauteur était déjà en pixels.
+     */
+    var NODE_W = 8, NODE_PAD = 7;
+
+    /**
+     * Longueur maximale d'une étiquette, en caractères.
+     *
+     * Au-delà, un nom mange la place du dessin sans devenir lisible pour autant. Le nom complet
+     * reste accessible au clic, dans l'infobulle.
+     */
+    var LABEL_MAX_CHARS = 18;
+
+    /** Mesure de texte au vrai corps, plutôt qu'une largeur moyenne par caractère supposée. */
+    var ruler = document.createElement('canvas').getContext('2d');
+    if (ruler) ruler.font = '10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
+    function textWidth(label) {
+      // 5,6 px par caractère est le repli quand le canvas est indisponible : c'est la largeur
+      // moyenne mesurée pour ce corps, donc une approximation honnête plutôt qu'un chiffre rond.
+      return ruler ? ruler.measureText(label).width : label.length * 5.6;
+    }
+
+    /**
+     * Place réservée aux étiquettes de la dernière colonne.
+     *
+     * Elle était proportionnelle à la largeur du widget, donc constante quelle que soit la
+     * longueur des noms : sur un tableau de bord de téléphone, près d'un tiers de la surface
+     * partait en marge, dont une partie en vide à droite du plus long nom. Elle se déduit
+     * désormais des étiquettes réellement dessinées, et le plafond laisse au dessin au moins les
+     * trois quarts de la largeur.
+     */
+    function labelRoom(labels, width) {
+      var longest = 0;
+      for (var i = 0; i < labels.length; i++) {
+        longest = Math.max(longest, textWidth(cut(labels[i], LABEL_MAX_CHARS)));
+      }
+      return Math.max(56, Math.min(Math.round(width * 0.26), Math.ceil(longest) + 11));
+    }
+
+    /** Caractères tenant dans une place donnée, une fois celle-ci arrêtée. */
+    function labelChars(room) {
+      return Math.max(8, Math.min(LABEL_MAX_CHARS, Math.floor((room - 11) / 5.6)));
+    }
+
     var SLOTS = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6'];
     var svg = document.getElementById('svg');
     // Libellés servis par l'app, traduits. Repli anglais si l'appel échoue avant de les livrer.
@@ -131,7 +184,15 @@
 
     function render(m) {
       svg.innerHTML = '';
+      var W = Math.max(280, svg.clientWidth || 360);
       var H = Math.max(160, svg.clientHeight || 320);
+      // La marge se déduit des seules étiquettes qui la réclament : celles de la dernière colonne.
+      // Les nœuds intermédiaires écrivent par-dessus le dessin, ils ne consomment aucune marge.
+      var deepest = 0;
+      m.nodes.forEach(function (n) { deepest = Math.max(deepest, n.depth); });
+      var lastLabels = m.nodes.filter(function (n) { return n.depth === deepest; })
+        .map(function (n) { return n.label; });
+      var LABEL_ROOM = labelRoom(lastLabels, W);
       svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
       if (!m.total || m.nodes.length < 2) {
         document.getElementById('sub').textContent = L.nothing;
@@ -242,7 +303,7 @@
         // fois ; ils passent au clic, où ils ont la place d'être complets.
         var dim = n.depth > 0 && !branchColor[n.id];
         var t = el('text', { x: n.x1 + 7, y: n.y0 + h / 2 + 3.5, class: 'lbl' + (dim ? ' dim' : '') });
-        t.textContent = cut(n.label, 30);
+        t.textContent = cut(n.label, labelChars(LABEL_ROOM));
         svg.appendChild(t);
       });
     }

@@ -13,10 +13,22 @@
   .k { color: #666; }
   .v { font-weight: 600; }
   .note { font-size: 12px; color: #666; line-height: 1.45; margin: 4px 0 10px; }
-  .u-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid #eee; font-size: 13px; }
-  .u-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .u-w { color: #666; font-variant-numeric: tabular-nums; }
-  .u-row select { font-size: 12px; padding: 3px 5px; }
+  /*
+    La ligne DOIT pouvoir passer à deux lignes.
+
+    Sur une seule ligne, le nom était le seul élément élastique face à deux `select` qui ne se
+    compriment jamais sous leur contenu — « Automatique (Prises & divers) » fait à lui seul près
+    de 200 px. Sur un téléphone, le nom était donc écrasé à zéro pixel et `overflow: hidden` le
+    faisait disparaître en silence : la page listait des watts et des menus sans dire de quel
+    appareil il s'agissait, ce qui la rendait inutilisable là où elle est le plus consultée.
+
+    `flex-basis` de 240 px sur le nom, et non `flex: 1` : c'est ce qui fait passer les menus à la
+    ligne suivante quand la place manque, au lieu de prendre la sienne.
+  */
+  .u-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px; }
+  .u-name { flex: 1 1 240px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .u-w { flex: 0 0 auto; color: #666; font-variant-numeric: tabular-nums; }
+  .u-row select { flex: 0 1 auto; min-width: 0; max-width: 100%; font-size: 12px; padding: 3px 5px; }
   .u-row.manual .u-name { font-weight: 600; }
   pre { background: #f6f6f6; border-radius: 6px; padding: 10px; font-size: 11px; max-height: 300px; overflow: auto; white-space: pre-wrap; }
   button { font-size: 14px; padding: 8px 14px; border-radius: 6px; border: 1px solid #ccc; background: #fafafa; cursor: pointer; }
