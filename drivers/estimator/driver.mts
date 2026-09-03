@@ -12,6 +12,7 @@ import Homey from 'homey';
 import type PowerEstimateApp from '../../app.mjs';
 import type { Candidate } from '../../app.mjs';
 import { plannedCapabilities } from '../../lib/mirror.mjs';
+import { SUPPORTED_STRATEGIES } from '../../lib/types.mjs';
 
 /** Ce que la vue de pairing reçoit. Volontairement plat : elle n'a pas de logique. */
 interface CandidateView {
@@ -62,7 +63,24 @@ export default class EstimatorDriver extends Homey.Driver {
       // Un appareil sans profil exploitable n'est PAS refusé : il est créé en saisie manuelle.
       // C'est le seul moyen de couvrir ce que la bibliothèque ignore — sur un parc réel, 12 des
       // 35 candidats — et de corriger un profil qui décrit autre chose que la charge mesurée.
-      const usable = candidate.match !== null && candidate.match.supported;
+      //
+      // La stratégie se décide ICI et pas dans la liste. L'index ne la publie plus : la lire pour
+      // les 747 modèles à chaque ouverture de la vue coûterait 747 requêtes, alors qu'un seul
+      // modèle compte — celui qu'on vient de choisir. L'appel amorce au passage le cache du
+      // profil, qui sera de toute façon nécessaire dans la seconde qui suit.
+      let usable = candidate.match !== null;
+      if (candidate.match !== null) {
+        try {
+          const meta = await this.app.getLibrary().getMeta(candidate.match);
+          usable = SUPPORTED_STRATEGIES.has(meta.strategy);
+          if (!usable) this.log(`[pair] ${candidate.match.model} : stratégie ${meta.strategy} non gérée, saisie manuelle`);
+        } catch (err) {
+          // Une bibliothèque injoignable ne doit pas bloquer l'ajout : la saisie manuelle marche
+          // hors ligne, et c'est un bien meilleur repli qu'un appareil qu'on ne peut pas créer.
+          usable = false;
+          this.log(`[pair] profil ${candidate.match.model} indisponible, saisie manuelle : ${String(err)}`);
+        }
+      }
 
       return {
         name: candidate.device.name,

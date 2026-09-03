@@ -19,7 +19,18 @@ export interface LibraryModel extends ProfileRef {
   aliases: string[];
   /** Noms alternatifs du fabricant (« Philips », « Signify Netherlands B.V. » pour `signify`). */
   manufacturerAliases: string[];
-  strategy: Strategy;
+  /**
+   * Stratégie de calcul, ou `null` quand l'index ne la publie pas.
+   *
+   * ⚠️ Depuis 2026, `api.powercalc.nl/library` ne rend plus `calculation_strategy` : sur 747
+   * modèles, zéro le porte. Exiger ce champ écartait donc TOUS les modèles et rendait un index
+   * vide — l'app affichait « 0 modèles » et ne reconnaissait plus rien, en production.
+   *
+   * La stratégie n'a pas disparu, elle a migré dans le `model.json` de chaque profil, qui n'est
+   * téléchargé qu'à la demande. Elle est donc inconnue au moment de l'index et résolue plus tard,
+   * une seule fois, quand l'utilisateur choisit l'appareil.
+   */
+  strategy: Strategy | null;
   deviceType?: DeviceType;
   /** Tables de mesure disponibles. Évite de deviner quels fichiers télécharger. */
   colorModes: LutKind[];
@@ -114,8 +125,10 @@ export class LibraryIndex {
       for (const modelEntry of list) {
         const mo = modelEntry as Record<string, unknown>;
         const id = typeof mo.id === 'string' ? mo.id : null;
+        // La stratégie n'est plus publiée par l'index, mais un cache disque écrit par une version
+        // antérieure la porte encore : on la lit quand elle est là, on ne l'exige jamais.
         const strategy = typeof mo.calculation_strategy === 'string' ? (mo.calculation_strategy as Strategy) : null;
-        if (!id || !strategy) continue;
+        if (!id) continue;
 
         models.push({
           manufacturer: dirName,

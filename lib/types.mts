@@ -33,6 +33,11 @@ export interface ProfileModel {
   /** Le profil ne décrit que l'appareil lui-même, pas la charge qu'il pilote (variateur, prise). */
   only_self_usage?: boolean;
   aliases?: string[];
+  /**
+   * Présent quand le profil se décline en sous-profils (un téléviseur par diagonale, par exemple).
+   * L'index publiait `sub_profile_count` ; il ne le publie plus, et c'est désormais le seul indice.
+   */
+  sub_profile_select?: unknown;
   linked_profile?: string;
   linked_lut?: string;
   fixed_config?: { power?: number; states_power?: Record<string, number> };

@@ -53,7 +53,8 @@ export interface Candidate {
     manufacturer: string;
     model: string;
     label: string;
-    strategy: string;
+    /** `null` quand l'index ne publie pas la stratégie : elle est lue à l'ajout de l'appareil. */
+    strategy: string | null;
     deviceType: string | null;
     via: string;
     manufacturerConfirmed: boolean;
@@ -237,11 +238,14 @@ export default class PowerEstimateApp extends Homey.App {
             manufacturer: m.manufacturer,
             model: m.model,
             label: `${m.manufacturerLabel ?? m.manufacturer} ${m.name}`,
-            strategy: m.strategy,
+            strategy: m.strategy ?? null,
             deviceType: m.deviceType ?? null,
             via: found.via,
             manufacturerConfirmed: found.manufacturerConfirmed,
-            supported: SUPPORTED_STRATEGIES.has(m.strategy),
+            // Inconnue tant que le `model.json` n'est pas lu : l'index ne publie plus la
+            // stratégie. On n'écarte donc personne ici, et `build` tranche pour de bon — sur un
+            // seul modèle, celui que l'utilisateur vient de choisir, plutôt que sur 747.
+            supported: m.strategy === null || SUPPORTED_STRATEGIES.has(m.strategy),
             hasSubProfiles: m.subProfileCount > 0,
             selfUsageOnly: isSelfUsageOnly(m.deviceType),
           };

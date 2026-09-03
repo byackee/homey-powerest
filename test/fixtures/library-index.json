@@ -1,153 +1,134 @@
 {
  "manufacturers": [
   {
-   "aliases": [],
    "name": "innr",
-   "full_name": "Innr",
    "dir_name": "innr",
+   "full_name": "Innr",
+   "aliases": [],
    "models": [
     {
-     "calculation_strategy": "fixed",
-     "created_at": "2022-10-21T09:32:56Z",
-     "device_type": "smart_switch",
-     "measure_device": "Shelly Plug S",
-     "measure_method": "manual",
-     "name": "Smart Plug",
-     "only_self_usage": true,
-     "standby_power": 0.41,
-     "standby_power_on": 0.61,
+     "id": "RB 265",
+     "name": "Smart Bulb White E27 (2700K)",
+     "hash": "470ba1bacabcf3d772f8361d56c69efd",
+     "device_type": "light"
+    },
+    {
      "id": "SP 120",
-     "manufacturer": "innr",
-     "updated_at": "2026-08-28T05:54:58",
-     "max_power": 0.61,
-     "sub_profile_count": 0,
-     "hash": "e64a352aca61450d7b5ca5182808f513"
+     "name": "Smart Plug",
+     "hash": "0c85f601afb1acbd284bf1967deb5902",
+     "device_type": "smart_switch"
+    },
+    {
+     "id": "AE 280 C",
+     "name": "Smart Bulb Color E26",
+     "hash": "cf5e67b7b49ae6e9c1f6010fe365a708",
+     "device_type": "light"
+    },
+    {
+     "id": "BY 265",
+     "name": "Smart Bulb B22 White 806lm",
+     "hash": "4f6660ae777780980f8223918b130f2f",
+     "device_type": "light"
+    },
+    {
+     "id": "BY 285 C",
+     "name": "Smart Bulb B22 Colour 806lm",
+     "hash": "c70aafc30e5781f544f8b2ee40f0435d",
+     "device_type": "light"
+    },
+    {
+     "id": "FL 122 C",
+     "name": "Strip Light Colour",
+     "hash": "b05f47a62d3f525c422ccef08966daf6",
+     "device_type": "light"
     }
-   ],
-   "device_types": [
-    "light",
-    "smart_switch"
    ]
   },
   {
+   "name": "signify",
+   "dir_name": "signify",
+   "full_name": "Signify",
    "aliases": [
     "Philips",
     "Signify Netherlands B.V."
    ],
-   "name": "signify",
-   "full_name": "Signify",
-   "dir_name": "signify",
    "models": [
     {
-     "aliases": [
-      "8718696485880"
-     ],
-     "calculation_strategy": "lut",
-     "created_at": "2021-06-11T22:01:53Z",
-     "device_type": "light",
-     "measure_device": "Shelly Plug S",
-     "measure_method": "script",
-     "name": "Hue White and Color Ambiance Spot GU10",
-     "standby_power": 0.25,
-     "id": "LCT003",
-     "manufacturer": "signify",
-     "updated_at": "2026-08-21T10:30:36",
-     "max_power": 6.19,
-     "sub_profile_count": 0,
-     "color_modes": [
-      "color_temp",
-      "hs"
-     ],
-     "lut_quality": {
-      "score": 67.4,
-      "color_temp": 67.4
-     },
-     "hash": "c859e4931c44a9bdd02e545620f48b97"
+     "id": "LCT010",
+     "name": "Hue White and Color Ambiance A19 E26 (Gen 3)",
+     "hash": "991925a8d4f3385f8bae3e2a8747bcc6",
+     "device_type": "light"
     },
     {
-     "calculation_strategy": "lut",
-     "created_at": "2021-06-11T22:01:53Z",
-     "device_type": "light",
-     "measure_device": "Shelly Plug S",
-     "measure_method": "script",
-     "name": "Hue White and Color Ambiance Candle E12",
-     "standby_power": 0.35,
      "id": "LCT012",
-     "manufacturer": "signify",
-     "updated_at": "2026-08-21T10:30:36",
-     "max_power": 5.43,
-     "sub_profile_count": 0,
-     "color_modes": [
-      "color_temp",
-      "hs"
-     ],
-     "lut_quality": {
-      "score": 54.6,
-      "color_temp": 54.6
-     },
-     "hash": "4e68983fc18abc7588dab1e62af0c538"
+     "name": "Hue White and Color Ambiance Candle E12",
+     "hash": "7b2644d550b2dcd0dead54f91994e129",
+     "device_type": "light"
     },
     {
+     "id": "LST002",
+     "name": "Hue LightStrip Plus (2m)",
      "aliases": [
       "915005106701"
      ],
-     "calculation_strategy": "lut",
-     "created_at": "2021-09-10T20:49:41Z",
-     "device_type": "light",
-     "measure_device": "AVM Fritz!DECT 200",
-     "measure_method": "script",
-     "name": "Hue LightStrip Plus (2m)",
-     "standby_power": 0.18,
-     "id": "LST002",
-     "manufacturer": "signify",
-     "updated_at": "2026-08-21T10:30:36",
-     "max_power": 21.88,
-     "sub_profile_count": 0,
-     "color_modes": [
-      "color_temp",
-      "hs"
-     ],
-     "lut_quality": {
-      "score": 32.7,
-      "color_temp": 32.7
-     },
-     "hash": "30560ef4e146c30dd383147fcf840881"
+     "hash": "dacb8dd9c56f07b016c0b3d4eb4d9dd2",
+     "device_type": "light"
     },
     {
+     "id": "LTW013",
+     "name": "Hue White Ambiance GU10",
      "aliases": [
       "8718696598283"
      ],
-     "calculation_strategy": "lut",
-     "created_at": "2022-02-14T21:48:07Z",
-     "device_type": "light",
-     "measure_device": "Shelly Plus 1PM",
-     "measure_method": "script",
-     "measure_settings": {
-      "SAMPLE_COUNT": 1,
-      "SLEEP_TIME": 5,
-      "VERSION": "v0.17.0:docker"
-     },
-     "name": "Hue White Ambiance GU10",
-     "standby_power": 0.3,
-     "id": "LTW013",
-     "manufacturer": "signify",
-     "updated_at": "2026-08-21T10:30:36",
-     "max_power": 5.43,
-     "sub_profile_count": 0,
-     "color_modes": [
-      "color_temp"
+     "hash": "5adc6accecba7331b33435fc29ccfb56",
+     "device_type": "light"
+    },
+    {
+     "id": "8719514491106",
+     "name": "Hue White Ambiance E14 Luster Bulb",
+     "hash": "37b591b54ca5be4a6422f654a59e085d",
+     "device_type": "light"
+    },
+    {
+     "id": "915005561201",
+     "name": "Hue Lucca Outdoor Wall Light",
+     "aliases": [
+      "1740193P0",
+      "9150055612",
+      "Hue Outdoor Lucca"
      ],
-     "lut_quality": {
-      "score": 98.7,
-      "color_temp": 98.7
-     },
-     "hash": "6d6d18451b82c602350a31dc16fa57cb"
+     "legacy_ids": [
+      "1740193P0"
+     ],
+     "hash": "b69e5916c5f19f1eeb3fd3a1fc74cc92",
+     "device_type": "light"
+    },
+    {
+     "id": "915005630201",
+     "name": "Hue Calla Outdoor Bollard",
+     "aliases": [
+      "1741930V7",
+      "9150056302"
+     ],
+     "legacy_ids": [
+      "1741930V7"
+     ],
+     "hash": "e932b88d29bace93470dd16ee1072c3b",
+     "device_type": "light"
+    },
+    {
+     "id": "915005730601",
+     "name": "Hue Impress Outdoor Wall Light Small",
+     "aliases": [
+      "1742930P7",
+      "9150057306"
+     ],
+     "legacy_ids": [
+      "1742930P7"
+     ],
+     "hash": "810d49daa9d5d01446ad7b4c81f71573",
+     "device_type": "light"
     }
-   ],
-   "device_types": [
-    "light",
-    "network",
-    "smart_switch"
    ]
   }
  ]

@@ -20,7 +20,7 @@ import path from 'node:path';
 
 import { LibraryIndex, type LibraryModel } from '../lib/matching.mjs';
 import { LutTable } from '../lib/lut.mjs';
-import { ProfileError, type LutKind, type ProfileModel } from '../lib/types.mjs';
+import { ProfileError, type LutKind, type ProfileModel, type Strategy } from '../lib/types.mjs';
 import { LUT_FILES, type LutTables } from '../lib/strategies.mjs';
 
 const DEFAULT_BASE_URL = 'https://api.powercalc.nl';
@@ -65,6 +65,24 @@ export interface LibraryClientOptions {
   fetchImpl?: FetchLike;
 }
 
+/**
+ * Ce que l'index ne dit plus, et qu'il faut aller chercher dans le profil lui-même.
+ *
+ * Depuis 2026, `api.powercalc.nl/library` ne publie plus ni `calculation_strategy`, ni
+ * `color_modes`, ni `sub_profile_count`. Ces trois informations existent toujours, mais ailleurs :
+ * la stratégie et les sous-profils dans `model.json`, les tables disponibles dans la LISTE DE
+ * FICHIERS du profil — laquelle est plus fiable que l'ancien `color_modes`, puisqu'elle décrit ce
+ * qui est réellement téléchargeable plutôt que ce qui est déclaré.
+ *
+ * La méta est mise en cache sur disque à côté du profil : sans elle, une Homey redémarrée hors
+ * ligne ne saurait plus quelles tables elle est censée avoir, et retéléchargerait sans fin.
+ */
+export interface ProfileMeta {
+  strategy: Strategy;
+  tables: LutKind[];
+  hasSubProfiles: boolean;
+}
+
 /** Un profil prêt à calculer : son `model.json` et ses tables décodées. */
 export interface LoadedProfile {
   ref: { manufacturer: string; model: string };
@@ -83,6 +101,15 @@ export class LibraryClient {
   private readonly memory = new Map<string, LoadedProfile>();
   /** Téléchargements en cours, pour que deux appareils du même modèle n'en lancent pas deux. */
   private readonly inflight = new Map<string, Promise<LoadedProfile>>();
+  private readonly metaMemory = new Map<string, ProfileMeta>();
+  private readonly metaInflight = new Map<string, Promise<ProfileMeta>>();
+  /**
+   * Listes de fichiers déjà demandées, par profil.
+   *
+   * La méta et le téléchargement des tables en ont besoin l'une après l'autre. Sans mémoire, tout
+   * ajout d'appareil ferait deux fois le même appel.
+   */
+  private readonly listings = new Map<string, Promise<Map<string, string>>>();
 
   public constructor(options: LibraryClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
@@ -143,9 +170,92 @@ export class LibraryClient {
     return task;
   }
 
+  /**
+   * La stratégie et les tables d'un profil, résolues une seule fois.
+   *
+   * Mémoire, puis disque, puis réseau — comme les profils eux-mêmes. L'appel réseau récupère la
+   * liste de fichiers et le `model.json`, ce qui amorce au passage le cache du profil que
+   * l'utilisateur s'apprête à choisir.
+   */
+  public async getMeta(ref: ProfileRefLike): Promise<ProfileMeta> {
+    const key = cacheKey(ref.manufacturer, ref.model);
+
+    const hot = this.metaMemory.get(key);
+    if (hot) return hot;
+
+    const pending = this.metaInflight.get(key);
+    if (pending) return pending;
+
+    const task = this.resolveMeta(ref, key).finally(() => this.metaInflight.delete(key));
+    this.metaInflight.set(key, task);
+    return task;
+  }
+
+  private async resolveMeta(ref: ProfileRefLike, key: string): Promise<ProfileMeta> {
+    const dir = path.join(this.cacheDir, 'profiles', key);
+    const cached = parseMeta(await this.readCachedJson(path.join(dir, 'meta.json')));
+    if (cached) {
+      this.metaMemory.set(key, cached);
+      return cached;
+    }
+
+    const byPath = await this.listing(ref);
+    const modelUrl = byPath.get('model.json');
+    if (!modelUrl) throw new ProfileError(`profil ${ref.manufacturer}/${ref.model} sans model.json`, 'malformed');
+
+    const raw = Buffer.from(await this.getBuffer(modelUrl));
+    await this.writeCache(path.join(dir, 'model.json'), raw);
+
+    let modelJson: ProfileModel;
+    try {
+      modelJson = JSON.parse(raw.toString('utf-8')) as ProfileModel;
+    } catch (err) {
+      throw new ProfileError(`model.json de ${key} illisible : ${describe(err)}`, 'malformed');
+    }
+
+    const strategy = modelJson.calculation_strategy;
+    if (typeof strategy !== 'string') {
+      throw new ProfileError(`model.json de ${key} sans calculation_strategy`, 'malformed');
+    }
+
+    const meta: ProfileMeta = {
+      strategy,
+      tables: strategy === 'lut' ? tablesFromListing(byPath.keys()) : [],
+      hasSubProfiles: modelJson.sub_profile_select !== undefined,
+    };
+    await this.writeCache(path.join(dir, 'meta.json'), Buffer.from(JSON.stringify(meta), 'utf-8'));
+    this.metaMemory.set(key, meta);
+    return meta;
+  }
+
+  /** La liste des fichiers d'un profil, avec leurs URL brutes. Mémorisée pour la session. */
+  private listing(ref: ProfileRefLike): Promise<Map<string, string>> {
+    const key = cacheKey(ref.manufacturer, ref.model);
+    const known = this.listings.get(key);
+    if (known) return known;
+
+    const url = `${this.baseUrl}/download/${encodeURIComponent(ref.manufacturer)}/${encodeURIComponent(ref.model)}`;
+    const task = (async (): Promise<Map<string, string>> => {
+      const listing = await this.getJson(url) as Array<{ path?: string; url?: string }> | null;
+      if (!Array.isArray(listing) || listing.length === 0) {
+        throw new ProfileError(`profil ${ref.manufacturer}/${ref.model} absent de la bibliothèque`, 'not_found');
+      }
+      const byPath = new Map<string, string>();
+      for (const entry of listing) {
+        if (typeof entry?.path === 'string' && typeof entry?.url === 'string') byPath.set(entry.path, entry.url);
+      }
+      return byPath;
+    })();
+    // Un échec ne reste pas en mémoire : la tentative suivante doit repartir du réseau.
+    task.catch(() => this.listings.delete(key));
+    this.listings.set(key, task);
+    return task;
+  }
+
   private async loadProfile(model: LibraryModel, key: string): Promise<LoadedProfile> {
     const dir = path.join(this.cacheDir, 'profiles', key);
-    const wanted = tablesToFetch(model);
+    // C'est la méta, pas l'index, qui sait quelles tables ce profil possède.
+    const wanted = (await this.getMeta(model)).tables;
 
     let modelJson = await this.readCachedJson(path.join(dir, 'model.json'));
     const buffers = new Map<LutKind, Buffer>();
@@ -189,16 +299,7 @@ export class LibraryClient {
     wanted: LutKind[],
     buffers: Map<LutKind, Buffer>,
   ): Promise<void> {
-    const url = `${this.baseUrl}/download/${encodeURIComponent(model.manufacturer)}/${encodeURIComponent(model.model)}`;
-    const listing = await this.getJson(url) as Array<{ path?: string; url?: string }> | null;
-    if (!Array.isArray(listing) || listing.length === 0) {
-      throw new ProfileError(`profil ${model.manufacturer}/${model.model} absent de la bibliothèque`, 'not_found');
-    }
-
-    const byPath = new Map<string, string>();
-    for (const entry of listing) {
-      if (typeof entry?.path === 'string' && typeof entry?.url === 'string') byPath.set(entry.path, entry.url);
-    }
+    const byPath = await this.listing(model);
 
     const modelUrl = byPath.get('model.json');
     if (!modelUrl) throw new ProfileError(`profil ${model.manufacturer}/${model.model} sans model.json`, 'malformed');
@@ -269,17 +370,42 @@ export class LibraryClient {
   }
 }
 
+/** Le strict nécessaire pour désigner un profil : `getMeta` n'a pas besoin de tout un modèle. */
+export interface ProfileRefLike {
+  manufacturer: string;
+  model: string;
+}
+
 /**
- * Tables à récupérer pour un modèle.
+ * Les tables réellement présentes dans un profil, d'après sa liste de fichiers.
  *
- * L'index publie `color_modes`, donc on sait AVANT de télécharger quelles tables existent. Sans
- * cette information (profil ancien), on demande les trois : les absentes seront simplement
- * introuvables dans la liste de fichiers, sans erreur.
+ * L'index publiait autrefois `color_modes`, et l'app demandait les trois tables quand il manquait.
+ * C'était tolérable tant que `color_modes` existait ; ce n'est plus le cas, et demander trois
+ * tables dont une seule existe casserait le contrôle de complétude du cache — le profil serait
+ * jugé incomplet à chaque démarrage et retéléchargé sans fin.
+ *
+ * La liste de fichiers dit ce qui existe vraiment. C'est une meilleure source que la déclaration.
  */
-export function tablesToFetch(model: LibraryModel): LutKind[] {
-  if (model.strategy !== 'lut') return [];
-  if (model.colorModes.length > 0) return model.colorModes;
-  return ['brightness', 'color_temp', 'hs'];
+export function tablesFromListing(paths: Iterable<string>): LutKind[] {
+  const available = new Set(paths);
+  const out: LutKind[] = [];
+  for (const [kind, file] of Object.entries(LUT_FILES) as Array<[LutKind, string]>) {
+    if (available.has(file)) out.push(kind);
+  }
+  return out;
+}
+
+/** Relit une méta écrite sur disque, en refusant tout ce qui la rendrait trompeuse. */
+function parseMeta(raw: unknown): ProfileMeta | null {
+  if (raw === null || typeof raw !== 'object') return null;
+  const candidate = raw as Partial<ProfileMeta>;
+  if (typeof candidate.strategy !== 'string') return null;
+  if (!Array.isArray(candidate.tables)) return null;
+  return {
+    strategy: candidate.strategy,
+    tables: candidate.tables.filter((kind): kind is LutKind => typeof kind === 'string' && kind in LUT_FILES),
+    hasSubProfiles: candidate.hasSubProfiles === true,
+  };
 }
 
 /**
