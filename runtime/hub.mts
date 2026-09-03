@@ -21,6 +21,7 @@ import type Homey from 'homey';
 import { HomeyAPI } from 'homey-api';
 
 import type { DeviceIdentity } from '../lib/matching.mjs';
+import { isoDate, isoWeek, type EnergyReport, type Period } from '../lib/report.mjs';
 
 type HomeyInstance = Homey.App['homey'];
 type Logger = (...args: unknown[]) => void;
@@ -41,6 +42,24 @@ const START_RETRY_MAX_MS = 5 * 60_000;
  * d'appareils passent tous par ici, donc le plancher est la seule protection.
  */
 const REFRESH_MIN_INTERVAL_MS = 60_000;
+
+/**
+ * Durée de vie d'un rapport d'énergie en cache, par période.
+ *
+ * Le widget se rafraîchit toutes les dix secondes en mode instantané ; laisser ce rythme
+ * atteindre `getReportDay` ferait six appels réseau par minute et par tableau de bord, pour une
+ * donnée que Homey ne recalcule qu'au pas de cinq minutes. Le quota d'Athom est global : c'est
+ * exactement ainsi qu'on se fait couper l'app pendant vingt minutes.
+ *
+ * Un rapport d'année ne bouge pas plus vite qu'un rapport de mois, mais il coûte bien plus cher à
+ * produire — d'où l'échelle croissante.
+ */
+const REPORT_TTL_MS: Readonly<Record<Exclude<Period, 'live'>, number>> = {
+  day: 5 * 60_000,
+  week: 15 * 60_000,
+  month: 30 * 60_000,
+  year: 60 * 60_000,
+};
 
 export type CapValue = boolean | number | string | null;
 
@@ -85,9 +104,26 @@ interface ApiManagerZones {
   getZones(opts?: { $cache?: boolean }): Promise<Record<string, ApiZone | undefined>>;
 }
 
+/**
+ * Les rapports d'énergie de Homey.
+ *
+ * Contrairement aux appareils et aux zones, ce manager n'a pas de `connect()` : ce sont de
+ * simples lectures REST, sans abonnement temps réel. Vérifié sur une Homey Pro le 3 septembre
+ * 2026 — une app portant `homey:manager:api` reçoit bien `homey.energy.readonly`, alors qu'elle
+ * se voit refuser `homey.device` pour `setDeviceSettings`. Les deux scopes sont indépendants.
+ */
+interface ApiManagerEnergy {
+  getReportDay(opts: { date: string }): Promise<unknown>;
+  getReportWeek(opts: { isoWeek: string }): Promise<unknown>;
+  getReportMonth(opts: { yearMonth: string }): Promise<unknown>;
+  getReportYear(opts: { year: string }): Promise<unknown>;
+  getCurrency(): Promise<unknown>;
+}
+
 interface HomeyApiClient {
   devices: ApiManagerDevices;
   zones: ApiManagerZones;
+  energy: ApiManagerEnergy;
   on(event: string, fn: (...args: unknown[]) => void): unknown;
   destroy(): void;
 }
@@ -155,6 +191,14 @@ export class HomeyApiHub extends EventEmitter {
   private startTimer: NodeJS.Timeout | null = null;
 
   private lastRefresh = 0;
+  /**
+   * Rapports en cache, avec la requête en cours plutôt que sa valeur.
+   *
+   * Retenir la PROMESSE et non le résultat est ce qui empêche deux widgets ouverts côte à côte de
+   * lancer deux fois le même appel avant que le premier ne réponde.
+   */
+  private readonly reports = new Map<string, { at: number; value: Promise<EnergyReport> }>();
+  private currency: string | null = null;
   private devices: Record<string, ApiDevice | undefined> = {};
   private zones: Record<string, ApiZone | undefined> = {};
 
@@ -323,6 +367,68 @@ export class HomeyApiHub extends EventEmitter {
     const api = this.api;
     if (!api) throw new Error('hub non connecté');
     await api.devices.setDeviceSettings({ id, settings });
+  }
+
+  /**
+   * Le rapport d'énergie de la période, en cache.
+   *
+   * La clé inclut la date : à minuit, « aujourd'hui » désigne un autre jour, et une clé qui ne
+   * porterait que la période servirait la veille jusqu'à expiration du délai.
+   */
+  public async getEnergyReport(period: Exclude<Period, 'live'>, now = new Date()): Promise<EnergyReport> {
+    const api = this.api;
+    if (!api) throw new Error('hub non connecté');
+
+    const key = `${period}:${this.periodKey(period, now)}`;
+    const cached = this.reports.get(key);
+    if (cached && now.getTime() - cached.at < REPORT_TTL_MS[period]) return cached.value;
+
+    const value = this.fetchReport(api, period, now);
+    this.reports.set(key, { at: now.getTime(), value });
+    // Un échec ne doit pas rester en cache : le widget suivant doit pouvoir réessayer.
+    value.catch(() => { if (this.reports.get(key)?.value === value) this.reports.delete(key); });
+    return value;
+  }
+
+  private periodKey(period: Exclude<Period, 'live'>, now: Date): string {
+    switch (period) {
+      case 'day': return isoDate(now);
+      case 'week': return isoWeek(now);
+      case 'month': return isoDate(now).slice(0, 7);
+      case 'year': return String(now.getFullYear());
+    }
+  }
+
+  private async fetchReport(
+    api: HomeyApiClient,
+    period: Exclude<Period, 'live'>,
+    now: Date,
+  ): Promise<EnergyReport> {
+    switch (period) {
+      case 'day': return await api.energy.getReportDay({ date: isoDate(now) }) as EnergyReport;
+      case 'week': return await api.energy.getReportWeek({ isoWeek: isoWeek(now) }) as EnergyReport;
+      case 'month': return await api.energy.getReportMonth({ yearMonth: isoDate(now).slice(0, 7) }) as EnergyReport;
+      case 'year': return await api.energy.getReportYear({ year: String(now.getFullYear()) }) as EnergyReport;
+    }
+  }
+
+  /**
+   * La devise du logement.
+   *
+   * Elle est demandée une fois et retenue : elle ne change pas d'une heure à l'autre, et le champ
+   * `currency` des rapports vaut `null` — vérifié — donc c'est le seul endroit où la lire.
+   */
+  public async getCurrency(): Promise<string | null> {
+    if (this.currency !== null) return this.currency;
+    const api = this.api;
+    if (!api) return null;
+    try {
+      const value = await api.energy.getCurrency();
+      if (typeof value === 'string' && value !== '') this.currency = value;
+    } catch (err) {
+      this.errorLog('devise indisponible', err);
+    }
+    return this.currency;
   }
 
   private summarise(device: ApiDevice): DeviceSummary {

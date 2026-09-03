@@ -598,6 +598,63 @@
       },
       "settings": [
         {
+          "id": "period",
+          "type": "dropdown",
+          "value": "live",
+          "title": {
+            "en": "Period",
+            "fr": "Période",
+            "nl": "Periode"
+          },
+          "hint": {
+            "en": "Now shows watts. The other periods show kilowatt-hours and the bill that goes with them, from Homey’s own energy reports. Per-device detail only exists for a whole period, never hour by hour.",
+            "fr": "Maintenant affiche des watts. Les autres périodes affichent des kilowattheures et la facture qui va avec, d’après les rapports d’énergie de Homey. Le détail par appareil n’existe que sur une période entière, jamais heure par heure.",
+            "nl": "Nu toont watt. De andere periodes tonen kilowattuur en de bijbehorende kosten, uit de energierapporten van Homey zelf."
+          },
+          "values": [
+            {
+              "id": "live",
+              "label": {
+                "en": "Now",
+                "fr": "Maintenant",
+                "nl": "Nu"
+              }
+            },
+            {
+              "id": "day",
+              "label": {
+                "en": "Today",
+                "fr": "Aujourd'hui",
+                "nl": "Vandaag"
+              }
+            },
+            {
+              "id": "week",
+              "label": {
+                "en": "This week",
+                "fr": "Cette semaine",
+                "nl": "Deze week"
+              }
+            },
+            {
+              "id": "month",
+              "label": {
+                "en": "This month",
+                "fr": "Ce mois-ci",
+                "nl": "Deze maand"
+              }
+            },
+            {
+              "id": "year",
+              "label": {
+                "en": "This year",
+                "fr": "Cette année",
+                "nl": "Dit jaar"
+              }
+            }
+          ]
+        },
+        {
           "id": "grouping",
           "type": "dropdown",
           "value": "category+zone",

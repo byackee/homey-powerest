@@ -23,6 +23,7 @@ import { SUPPORTED_STRATEGIES } from './lib/types.mjs';
 import { buildSankey, UNMEASURED_ID, type FlowDevice, type Grouping, type SankeyModel } from './lib/sankey.mjs';
 import { crossedUp } from './lib/threshold.mjs';
 import { CATEGORIES, categorise, type Category } from './lib/categories.mjs';
+import { floorFor, reportToFlowDevices, reportTotals, type DeviceContext, type Period } from './lib/report.mjs';
 
 sourceMapSupport.install();
 
@@ -269,6 +270,59 @@ export default class PowerEstimateApp extends Homey.App {
    */
   public energyFlow(grouping?: readonly Grouping[]): SankeyModel {
     return this.translate(buildSankey(this.flowDevices(), { grouping }));
+  }
+
+  /**
+   * Le diagramme d'une PÉRIODE, en kWh, bâti sur les rapports d'énergie de Homey.
+   *
+   * Le mode instantané répond « combien maintenant » ; celui-ci répond « combien depuis ce
+   * matin », qui est la question que l'on se pose devant une facture. Homey tient déjà ces
+   * chiffres, appareil par appareil, mais ne les montre qu'en plein écran et jamais en flux.
+   *
+   * Le modèle n'a pas une ligne de différence : `buildSankey` ne connaît que des nombres. Seul le
+   * plancher change, parce qu'un plancher pensé pour des watts effacerait, en kWh, la moitié du
+   * logement — voir `floorFor`.
+   */
+  public async energyFlowOverPeriod(
+    period: Exclude<Period, 'live'>,
+    grouping?: readonly Grouping[],
+  ): Promise<SankeyModel & { unit: string; cost: number | null; currency: string | null }> {
+    const hub = this.getHub();
+    const report = await hub.getEnergyReport(period);
+    const context = this.deviceContexts();
+    const devices = reportToFlowDevices(report, (id) => context.get(id) ?? null);
+    const model = this.translate(buildSankey(devices, { grouping, minWatts: floorFor(period) }));
+    return {
+      ...model,
+      unit: 'kWh',
+      cost: reportTotals(report).cost,
+      currency: await hub.getCurrency(),
+    };
+  }
+
+  /**
+   * Ce que l'app sait des appareils et que le rapport ignore : la pièce, la classe, l'usage
+   * choisi à la main, le parent qui les alimente.
+   *
+   * Le rapport ne rend qu'un identifiant et un nom. Sans cette jonction, le diagramme d'une
+   * période n'aurait plus ni niveau « usage » ni niveau « pièce » — c'est-à-dire plus rien de ce
+   * qui le distingue de l'onglet Énergie de Homey.
+   */
+  private deviceContexts(): Map<string, DeviceContext> {
+    const profileTypes = this.companionDeviceTypes();
+    const overrides = this.categoryOverrides();
+    const powered = this.poweredByMap();
+    const out = new Map<string, DeviceContext>();
+    for (const device of this.getHub().listDevices()) {
+      out.set(device.id, {
+        zoneName: device.zoneName,
+        deviceClass: device.class,
+        deviceType: (device.dataId !== null ? profileTypes.get(device.dataId) : undefined) ?? null,
+        categoryOverride: overrides[device.id] ?? null,
+        poweredBy: powered[device.id] ?? null,
+      });
+    }
+    return out;
   }
 
   /**

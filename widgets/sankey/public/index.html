@@ -73,7 +73,9 @@
 
 <div class="viz" id="viz">
   <div class="head">
-    <div class="hero" id="hero">—<span class="u">W</span></div>
+    <!-- Aucune unité tant que l'app n'a pas répondu : un widget réglé sur la journée
+         afficherait sinon « W » pendant un instant, puis « kWh ». -->
+    <div class="hero" id="hero">—<span class="u"></span></div>
     <div class="sub" id="sub"></div>
   </div>
   <!-- Pas de `preserveAspectRatio="none"` : le viewBox est désormais aux dimensions réelles en
@@ -286,7 +288,7 @@
           d: path(l), class: 'link', stroke: stroke,
           'stroke-width': Math.max(1, l.width), 'stroke-opacity': unknown ? 1 : null,
         });
-        detail(p, l.source.label + ' → ' + l.target.label + ' · ' + fmt(l.value) + ' W');
+        detail(p, l.source.label + ' → ' + l.target.label + ' · ' + fmt(l.value) + ' ' + UNIT);
         svg.appendChild(p);
       });
 
@@ -295,7 +297,7 @@
         var color = n.depth === 0 ? css.getPropertyValue('--text-secondary').trim() : colorOf(n);
         var rect = el('rect', { x: n.x0, y: n.y0, width: n.x1 - n.x0, height: h, rx: 2, fill: color, class: 'node' });
         var pct = m.total ? Math.round(n.watts / m.total * 100) : 0;
-        detail(rect, n.label + '   ' + fmt(n.watts) + ' W   ·   ' + pct + ' % ' + L.of_home);
+        detail(rect, n.label + '   ' + fmt(n.watts) + ' ' + UNIT + '   ·   ' + pct + ' % ' + L.of_home);
         svg.appendChild(rect);
 
         if (h < 9) return;
@@ -321,8 +323,28 @@
       return Promise.reject(new Error('Homey.api n’a pas rendu de promesse'));
     }
 
+    /**
+     * L'unité du régime courant : `W` en instantané, `kWh` sur une période.
+     *
+     * Elle était écrite en dur à quatre endroits. Un diagramme de la journée qui affiche « 8,98 W »
+     * ne se lit pas comme faux, il se lit comme faible — c'est le pire des deux mondes.
+     */
+    var UNIT = 'W';
+    var timer = null;
+
+    /**
+     * Le rythme de rafraîchissement suit le régime.
+     *
+     * Dix secondes ont un sens pour une puissance instantanée. Sur un rapport que Homey ne
+     * recalcule qu'au pas de cinq minutes, elles ne feraient que redessiner le même dessin.
+     */
+    function schedule(period) {
+      if (timer) clearInterval(timer);
+      timer = setInterval(load, period === 'live' ? 10000 : 60000);
+    }
+
     function fail(message) {
-      document.getElementById('hero').innerHTML = '—<span class="u">W</span>';
+      document.getElementById('hero').innerHTML = '—<span class="u">' + UNIT + '</span>';
       document.getElementById('sub').textContent = String(message);
     }
 
@@ -347,21 +369,32 @@
 
     function load() {
       // `Homey.getSettings()` est SYNCHRONE dans un widget, contrairement à `Homey.api`.
-      var grouping = 'category+zone';
+      var grouping = 'category+zone', period = 'live';
       try {
         var st = Homey.getSettings() || {};
         if (typeof st.grouping === 'string' && st.grouping !== '') grouping = st.grouping;
-      } catch (e) { /* réglage indisponible : la vue croisée fait un défaut acceptable */ }
+        if (typeof st.period === 'string' && st.period !== '') period = st.period;
+      } catch (e) { /* réglage indisponible : la vue croisée en instantané fait un défaut acceptable */ }
 
-      call('GET', '/?grouping=' + encodeURIComponent(grouping)).then(function (m) {
+      call('GET', '/?grouping=' + encodeURIComponent(grouping) + '&period=' + encodeURIComponent(period))
+        .then(function (m) {
         if (!m) { fail(L.no_data); return; }
         if (m.labels) L = m.labels;
+        // L'unité fait autorité côté app : la vue ne devine pas le régime à partir du réglage,
+        // qui peut avoir changé sans que la réponse en cours le sache.
+        UNIT = m.unit || 'W';
+        schedule(m.period || 'live');
+
         var pct = m.total ? Math.round(m.unmeasured / m.total * 100) : 0;
-        document.getElementById('hero').innerHTML = fmt(m.total) + '<span class="u">W</span>';
+        // La facture n'existe que sur une période. En instantané, Homey ne la donne pas.
+        var cost = (typeof m.cost === 'number' && m.cost > 0)
+          ? ' · <b>' + m.cost.toFixed(2) + (m.currency ? ' ' + m.currency : '') + '</b>'
+          : '';
+        document.getElementById('hero').innerHTML = fmt(m.total) + '<span class="u">' + UNIT + '</span>';
         document.getElementById('sub').innerHTML = m.partial
-          ? L.sum_only + ' — <b>' + L.no_meter + '</b>'
-          : '<b>' + fmt(m.measured) + ' W</b> ' + L.identified + ' · <b>' + fmt(m.unmeasured) + ' W</b> '
-            + L.unmeasured + ' (' + pct + '%)';
+          ? L.sum_only + ' — <b>' + L.no_meter + '</b>' + cost
+          : '<b>' + fmt(m.measured) + ' ' + UNIT + '</b> ' + L.identified + ' · <b>'
+            + fmt(m.unmeasured) + ' ' + UNIT + '</b> ' + L.unmeasured + ' (' + pct + '%)' + cost;
         render(m);
       }).catch(function (e) { fail((e && e.message) || e); });
     }
@@ -379,7 +412,7 @@
 
     applyTheme();
     load();
-    setInterval(load, 10000);
+    schedule('live');
     window.addEventListener('resize', load);
     Homey.ready();
   }
