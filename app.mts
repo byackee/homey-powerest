@@ -20,7 +20,11 @@ import { HomeyApiHub, type DeviceSummary } from './runtime/hub.mjs';
 import { LibraryClient } from './runtime/library.mjs';
 import { isSelfUsageOnly, matchDevice, type LibraryIndex, type Match } from './lib/matching.mjs';
 import { SUPPORTED_STRATEGIES } from './lib/types.mjs';
-import { buildSankey, UNMEASURED_ID, type FlowDevice, type Grouping, type SankeyModel } from './lib/sankey.mjs';
+import {
+  buildSankey, EXPORT_ID, GRID_ID, OTHER_SOURCE_ID, SOLAR_ID, SOURCE_ID, UNMEASURED_ID,
+  type FlowDevice, type Grouping, type SankeyModel,
+} from './lib/sankey.mjs';
+import { energyRole, producedWatts, ROLE_OVERRIDES, type EnergyRole } from './lib/roles.mjs';
 import { crossedUp } from './lib/threshold.mjs';
 import { CATEGORIES, categorise, type Category } from './lib/categories.mjs';
 import { floorFor, reportToFlowDevices, reportTotals, type DeviceContext, type Period } from './lib/report.mjs';
@@ -94,7 +98,13 @@ export default class PowerEstimateApp extends Homey.App {
 
     this.registerFlow();
     await this.hub.start();
-    this.flowTimer = this.homey.setInterval(() => { void this.evaluateFlow(); }, FLOW_TICK_MS);
+    this.flowTimer = this.homey.setInterval(() => {
+      // Sans ce passage, un appareil ajouté après le démarrage n'était suivi qu'au prochain
+      // appairage : le compteur « apparaissait » au bout d'un moment. Le relevé passe par le cache
+      // de homey-api, tenu à jour par le socket, et respecte de toute façon le plancher anti-quota.
+      void this.hub?.refresh().catch((err: unknown) => this.record('hub!', ['rafraîchissement périodique', err]));
+      void this.evaluateFlow();
+    }, FLOW_TICK_MS);
     this.record('log', ['app démarrée']);
   }
 
@@ -291,7 +301,8 @@ export default class PowerEstimateApp extends Homey.App {
     const report = await hub.getEnergyReport(period);
     const context = this.deviceContexts();
     const devices = reportToFlowDevices(report, (id) => context.get(id) ?? null);
-    const model = this.translate(buildSankey(devices, { grouping, minWatts: floorFor(period) }));
+    // Le rapport ne donne que l'importé : sur une période, l'export est INCONNU, pas nul.
+    const model = this.translate(buildSankey(devices, { grouping, minWatts: floorFor(period), exportKnown: false }));
     return {
       ...model,
       unit: 'kWh',
@@ -317,6 +328,7 @@ export default class PowerEstimateApp extends Homey.App {
       out.set(device.id, {
         zoneName: device.zoneName,
         deviceClass: device.class,
+        virtualClass: device.virtualClass,
         deviceType: (device.dataId !== null ? profileTypes.get(device.dataId) : undefined) ?? null,
         categoryOverride: overrides[device.id] ?? null,
         poweredBy: powered[device.id] ?? null,
@@ -342,7 +354,26 @@ export default class PowerEstimateApp extends Homey.App {
     return {
       ...model,
       nodes: model.nodes.map((node) => {
-        if (node.id === UNMEASURED_ID) return { ...node, label: label('category.unmeasured', node.label) };
+        if (node.id === UNMEASURED_ID) {
+          return model.unmeasuredMayIncludeExport
+            ? { ...node, label: label('flow.unmeasured_or_export', node.label) }
+            : { ...node, label: label('category.unmeasured', node.label) };
+        }
+        // Les libellés génériques seulement : un compteur ou un onduleur garde son propre nom.
+        if (node.id === SOURCE_ID && node.label === 'Logement') return { ...node, label: label('flow.home', node.label) };
+        if ((node.id === SOURCE_ID || node.id === GRID_ID) && node.label === 'Compteurs') {
+          return { ...node, label: label('flow.meters', node.label) };
+        }
+        if (node.id === SOURCE_ID && node.label === 'Appareils mesurés') {
+          return { ...node, label: label('flow.measured_devices', node.label) };
+        }
+        if (node.id === SOLAR_ID && node.label === 'Production solaire') return { ...node, label: label('flow.solar', node.label) };
+        if (node.id === OTHER_SOURCE_ID) {
+          return { ...node, label: label(model.partial ? 'flow.grid_or_other' : 'flow.hidden_production', node.label) };
+        }
+        if (node.id === EXPORT_ID) {
+          return { ...node, label: label(model.partial ? 'flow.surplus' : 'flow.export', node.label) };
+        }
         if (node.categoryId && node.depth === 1) {
           return { ...node, label: label(`category.${node.categoryId}`, node.label) };
         }
@@ -373,14 +404,19 @@ export default class PowerEstimateApp extends Homey.App {
         // La mesure d'abord ; à défaut, l'approximation forfaitaire de Homey, qui fait entrer un
         // NAS ou une box dans l'Énergie sans qu'ils ne mesurent rien.
         const measured = device.watts;
-        const watts = measured ?? device.approxWatts;
-        if (watts === null) return null;
+        const raw = measured ?? device.approxWatts;
+        if (raw === null) return null;
+        const role = this.roleOf(device, overrides[device.id] ?? null);
+        // Une production n'a de sens que mesurée : un forfait de Homey est une consommation.
+        if (role === 'solar' && measured === null) return null;
+        const watts = role === 'solar' ? producedWatts(raw, device.class, device.virtualClass) : raw;
         return {
           id: device.id,
           name: device.name,
           zoneName: device.zoneName,
           watts,
-          cumulative: device.cumulative,
+          cumulative: role === 'grid',
+          solar: role === 'solar',
           deviceClass: device.class,
           deviceType: (device.dataId !== null ? profileTypes.get(device.dataId) : undefined) ?? null,
           categoryOverride: overrides[device.id] ?? null,
@@ -389,6 +425,16 @@ export default class PowerEstimateApp extends Homey.App {
         };
       })
       .filter((device): device is FlowDevice => device !== null);
+  }
+
+  /** Le rôle d'un appareil dans le bilan : entrée réseau, production, ou charge. */
+  private roleOf(device: DeviceSummary, override: string | null): EnergyRole {
+    return energyRole({
+      cumulative: device.cumulative,
+      deviceClass: device.class,
+      virtualClass: device.virtualClass,
+      override,
+    });
   }
 
   /**
@@ -472,23 +518,33 @@ export default class PowerEstimateApp extends Homey.App {
     this.record('flow', [`usage de ${deviceId} → ${categoryId ?? 'automatique'}`]);
   }
 
-  /** Ce que la page de réglages affiche : chaque appareil du bilan, son usage, et d'où il vient. */
+  /**
+   * Ce que la page de réglages affiche : chaque appareil du bilan, son usage, et d'où il vient.
+   *
+   * Les compteurs et la production y figurent aussi. Ils en étaient exclus, si bien qu'un P1 non
+   * reconnu comme compteur général ne pouvait pas être désigné comme entrée, et des panneaux
+   * rangés parmi les usages ne pouvaient pas en sortir.
+   */
   public listUsages(): Array<{
     id: string; name: string; zone: string | null; watts: number;
     categoryId: string; categoryLabel: string; manual: boolean; poweredBy: string | null;
-    approximated: boolean;
+    approximated: boolean; role: EnergyRole;
   }> {
     const overrides = this.categoryOverrides();
     return this.flowDevices()
-      .filter((device) => !device.cumulative)
       .map((device) => {
-        const category: Category = categorise(device.deviceClass, device.deviceType, device.categoryOverride);
+        const role: EnergyRole = device.cumulative ? 'grid' : device.solar === true ? 'solar' : 'load';
+        const roleId = Object.keys(ROLE_OVERRIDES).find((id) => ROLE_OVERRIDES[id] === role);
+        const category: Category = role !== 'load' && roleId
+          ? { id: roleId, label: this.roleLabel(roleId) }
+          : categorise(device.deviceClass, device.deviceType, device.categoryOverride);
         const translated = this.homey.__(`category.${category.id}`);
         return {
           id: device.id,
           name: device.name,
           zone: device.zoneName,
           watts: device.watts,
+          role,
           categoryId: category.id,
           categoryLabel: typeof translated === 'string' && translated !== `category.${category.id}` && translated !== ''
             ? translated : category.label,
@@ -498,6 +554,17 @@ export default class PowerEstimateApp extends Homey.App {
         };
       })
       .sort((a, b) => b.watts - a.watts);
+  }
+
+  /** Les rôles d'entrée proposables, présentés à part des usages. */
+  public availableRoles(): Array<{ id: string; label: string }> {
+    return Object.keys(ROLE_OVERRIDES).map((id) => ({ id, label: this.roleLabel(id) }));
+  }
+
+  private roleLabel(id: string): string {
+    const key = `role.${id.replace('source:', '')}`;
+    const translated = this.homey.__(key);
+    return typeof translated === 'string' && translated !== key && translated !== '' ? translated : id;
   }
 
   /** La liste des usages proposables, pour que la page n'en invente aucun. */

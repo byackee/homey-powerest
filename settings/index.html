@@ -127,16 +127,30 @@
           // pas où l'appareil atterrit, et l'utilisateur ne sait pas s'il doit corriger.
           auto.textContent = t('settings.auto') + ' (' + d.categoryLabel + ')';
           sel.appendChild(auto);
-          data.categories.forEach(function (c) {
-            var o = document.createElement('option');
-            o.value = c.id; o.textContent = c.label;
-            if (d.manual && d.categoryId === c.id) o.selected = true;
-            sel.appendChild(o);
-          });
+          // Deux groupes : ce que l'appareil consomme, ou ce qu'il FOURNIT au logement. Un P1 que son
+          // app ne déclare pas comme compteur, ou un onduleur sur une prise, se désignent ici.
+          // Une entrée n'a pas d'usage : le proposer laisserait croire qu'il change quelque chose.
+          var groups = [[t('settings.inputs_group'), data.roles || []]];
+          if (!d.role || d.role === 'load') groups.unshift([t('settings.usages_group'), data.categories]);
+          groups
+            .forEach(function (group) {
+              var g = document.createElement('optgroup');
+              g.label = group[0];
+              group[1].forEach(function (c) {
+                var o = document.createElement('option');
+                o.value = c.id; o.textContent = c.label;
+                if (d.manual && d.categoryId === c.id) o.selected = true;
+                g.appendChild(o);
+              });
+              sel.appendChild(g);
+            });
           sel.addEventListener('change', function () {
             Homey.api('PUT', '/usages', { deviceId: d.id, categoryId: sel.value }, function () { load(); });
           });
           row.appendChild(sel);
+
+          // Une entrée n'est alimentée par personne : la question « alimenté par » ne s'y pose pas.
+          if (d.role && d.role !== 'load') { box.appendChild(row); return; }
 
           var par = document.createElement('select');
           var none = document.createElement('option');
@@ -145,7 +159,7 @@
           data.devices.forEach(function (o) {
             // Un appareil ne peut pas s'alimenter lui-même, et une chaîne à deux niveaux suffit :
             // proposer un appareil déjà rattaché ouvrirait des cycles que le modèle refuse.
-            if (o.id === d.id || o.poweredBy) return;
+            if (o.id === d.id || o.poweredBy || (o.role && o.role !== 'load')) return;
             var op = document.createElement('option');
             op.value = o.id; op.textContent = o.name;
             if (d.poweredBy === o.id) op.selected = true;

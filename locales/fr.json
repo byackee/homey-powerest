@@ -54,7 +54,10 @@
     "no_data": "aucune donnée",
     "draw_failed": "Tracé impossible",
     "no_library": "Bibliothèque de tracé absente",
-    "double_counted": "Source non exclue de l'Énergie : elle y est comptée deux fois."
+    "double_counted": "Source non exclue de l'Énergie : elle y est comptée deux fois.",
+    "solar": "solaire",
+    "exported": "exportés",
+    "imported": "du réseau"
   },
   "settings": {
     "status": "État",
@@ -76,6 +79,23 @@
     "powered_by": "Alimenté par…",
     "nothing": "rien à signaler",
     "error": "erreur",
-    "flat_rate": "(estimation Homey)"
+    "flat_rate": "(estimation Homey)",
+    "usages_group": "Usage",
+    "inputs_group": "Entrée d’énergie"
+  },
+  "flow": {
+    "home": "Logement",
+    "meters": "Compteurs",
+    "measured_devices": "Appareils mesurés",
+    "solar": "Production solaire",
+    "hidden_production": "Production non mesurée",
+    "grid_or_other": "Réseau ou autre",
+    "export": "Export réseau",
+    "surplus": "Surplus non consommé",
+    "unmeasured_or_export": "Non mesuré ou exporté"
+  },
+  "role": {
+    "grid": "Compteur réseau (entrée)",
+    "solar": "Production solaire (entrée)"
   }
 }

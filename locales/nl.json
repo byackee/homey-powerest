@@ -54,7 +54,10 @@
     "no_data": "geen gegevens",
     "draw_failed": "Tekenen mislukt",
     "no_library": "Tekenbibliotheek ontbreekt",
-    "double_counted": "Bron niet uitgesloten van Energie: die wordt daar dubbel geteld."
+    "double_counted": "Bron niet uitgesloten van Energie: die wordt daar dubbel geteld.",
+    "solar": "zon",
+    "exported": "teruggeleverd",
+    "imported": "van het net"
   },
   "settings": {
     "status": "Status",
@@ -76,6 +79,23 @@
     "powered_by": "Gevoed door…",
     "nothing": "niets te melden",
     "error": "fout",
-    "flat_rate": "(schatting van Homey)"
+    "flat_rate": "(schatting van Homey)",
+    "usages_group": "Gebruik",
+    "inputs_group": "Energiebron"
+  },
+  "flow": {
+    "home": "Woning",
+    "meters": "Meters",
+    "measured_devices": "Gemeten apparaten",
+    "solar": "Zonne-opwek",
+    "hidden_production": "Niet-gemeten opwek",
+    "grid_or_other": "Net of anders",
+    "export": "Teruglevering",
+    "surplus": "Onverbruikt overschot",
+    "unmeasured_or_export": "Niet gemeten of teruggeleverd"
+  },
+  "role": {
+    "grid": "Netmeter (invoer)",
+    "solar": "Zonne-opwek (invoer)"
   }
 }

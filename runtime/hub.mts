@@ -74,6 +74,8 @@ interface ApiDevice {
   name: string;
   zone: string;
   class: string;
+  /** Ce qui est branché sur une prise, choisi par l'utilisateur dans Homey (« Panneau solaire »…). */
+  virtualClass?: string | null;
   capabilities: string[];
   capabilitiesObj: Record<string, { value?: unknown } | undefined> | null;
   settings?: Record<string, unknown> | null;
@@ -136,6 +138,8 @@ export interface DeviceSummary extends DeviceIdentity {
   hasPowerMeter: boolean;
   /** Valeur courante de `measure_power`, ou `null` si l'appareil n'en porte pas. */
   watts: number | null;
+  /** Classe de ce qui est branché sur une prise, quand l'utilisateur l'a déclarée. */
+  virtualClass: string | null;
   /**
    * Compteur général (Linky, pince ampèremétrique). C'est une SOURCE d'énergie pour le logement,
    * pas une charge : le confondre avec un appareil doublerait le total du diagramme de flux.
@@ -203,6 +207,17 @@ export class HomeyApiHub extends EventEmitter {
   private zones: Record<string, ApiZone | undefined> = {};
 
   private readonly subscriptions = new Set<ManagedSubscription>();
+  /**
+   * Dernière `measure_power` reçue en temps réel, par appareil.
+   *
+   * ⚠️ Le cache de `homey-api` ne suit PAS les valeurs des capabilities : `capabilitiesObj` n'est
+   * réécrit que pour celles auxquelles une instance est abonnée (`DeviceCapability`), le reste
+   * garde la valeur du dernier `getDevices()`. Le diagramme instantané lisait donc la puissance
+   * du DÉMARRAGE de l'app, et n'évoluait qu'aux rares rafraîchissements — un widget figé sur une
+   * valeur, signalé sur le forum. D'où un abonnement par appareil mesuré.
+   */
+  private readonly livePower = new Map<string, number | null>();
+  private readonly powerSubscriptions = new Map<string, Subscription>();
   private readonly log: Logger;
   private readonly errorLog: Logger;
 
@@ -259,6 +274,8 @@ export class HomeyApiHub extends EventEmitter {
     this.stopped = true;
     if (this.startTimer) { clearTimeout(this.startTimer); this.startTimer = null; }
     for (const sub of [...this.subscriptions]) sub.destroy();
+    this.powerSubscriptions.clear();
+    this.livePower.clear();
     try { this.api?.destroy(); } catch { /* le client peut déjà être détruit */ }
     this.api = null;
   }
@@ -286,6 +303,37 @@ export class HomeyApiHub extends EventEmitter {
     ]);
     this.devices = devices;
     this.zones = zones;
+    // Seul un relevé FORCÉ fait foi : il réécrit le cache avec les valeurs du moment. Un relevé
+    // servi depuis le cache rend les valeurs figées du démarrage, et vider ici ramenait le
+    // diagramme à ces valeurs à chaque passage périodique.
+    if (force) this.livePower.clear();
+    this.trackPower();
+  }
+
+  /**
+   * Tient un abonnement à `measure_power` pour chaque appareil qui en porte une.
+   *
+   * Ce sont des notifications par websocket : elles ne consomment pas le quota de l'API, qui ne
+   * compte que les requêtes. Rejoué après chaque rafraîchissement, pour suivre les appareils
+   * ajoutés et lâcher ceux qui ont disparu.
+   */
+  private trackPower(): void {
+    const wanted = new Set<string>();
+    for (const device of Object.values(this.devices)) {
+      if (device && (device.capabilities ?? []).includes('measure_power')) wanted.add(device.id);
+    }
+    for (const [id, sub] of this.powerSubscriptions) {
+      if (wanted.has(id)) continue;
+      sub.destroy();
+      this.powerSubscriptions.delete(id);
+      this.livePower.delete(id);
+    }
+    for (const id of wanted) {
+      if (this.powerSubscriptions.has(id)) continue;
+      this.powerSubscriptions.set(id, this.subscribe(id, 'measure_power', (value) => {
+        this.livePower.set(id, typeof value === 'number' && Number.isFinite(value) ? value : null);
+      }));
+    }
   }
 
   /** Tous les appareils connus, sous une forme dépourvue de `homey-api`. */
@@ -433,7 +481,9 @@ export class HomeyApiHub extends EventEmitter {
 
   private summarise(device: ApiDevice): DeviceSummary {
     const capabilities = device.capabilities ?? [];
-    const power = (device.capabilitiesObj ?? {})['measure_power']?.value;
+    const power = this.livePower.has(device.id)
+      ? this.livePower.get(device.id)
+      : (device.capabilitiesObj ?? {})['measure_power']?.value;
     return {
       id: device.id,
       name: device.name,
@@ -445,6 +495,7 @@ export class HomeyApiHub extends EventEmitter {
       available: device.available !== false,
       hasPowerMeter: capabilities.includes('measure_power') || capabilities.includes('meter_power'),
       watts: typeof power === 'number' && Number.isFinite(power) ? power : null,
+      virtualClass: typeof device.virtualClass === 'string' && device.virtualClass !== '' ? device.virtualClass : null,
       cumulative: (device.energyObj ?? {})?.cumulative === true,
       dataId: typeof device.data?.id === 'string' ? device.data.id : null,
       approxWatts: typeof (device.energyObj ?? {})?.W === 'number' ? (device.energyObj as { W: number }).W : null,

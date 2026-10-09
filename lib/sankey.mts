@@ -24,8 +24,20 @@ export interface FlowDevice {
   name: string;
   zoneName: string | null;
   watts: number;
-  /** Vrai pour un compteur général (Linky, pince). C'est une SOURCE, pas une charge. */
+  /**
+   * Vrai pour un compteur général (Linky, P1, pince). C'est une SOURCE, pas une charge.
+   *
+   * Sa valeur est NETTE : un P1 devient négatif dès que le logement réinjecte son surplus
+   * solaire. Il n'est donc jamais filtré sur le signe — l'écarter à ce moment-là faisait
+   * disparaître le compteur en pleine journée, puis réapparaître le soir.
+   */
   cumulative: boolean;
+  /**
+   * Vrai pour une production locale (onduleur, panneaux). `watts` est alors la puissance
+   * PRODUITE, positive. Une production n'est pas une charge : la ranger parmi les usages
+   * l'ajoutait à la consommation du logement au lieu de l'en retrancher.
+   */
+  solar?: boolean;
   /** Classe Homey, qui sert au rangement par usage. */
   deviceClass?: string | null;
   /** `device_type` du profil mesuré, quand il existe : il l'emporte sur la classe. */
@@ -49,8 +61,12 @@ export interface FlowDevice {
   poweredBy?: string | null;
 }
 
-/** 0 = compteur, puis un niveau par regroupement, et les appareils en dernier. */
-export type Depth = 0 | 1 | 2 | 3;
+/**
+ * -1 = les entrées (réseau, solaire) quand il y en a plusieurs, 0 = le logement — ou le compteur
+ * seul quand il est l'unique entrée —, puis un niveau par regroupement, et les appareils en
+ * dernier.
+ */
+export type Depth = -1 | 0 | 1 | 2 | 3;
 
 export interface SankeyNode {
   id: string;
@@ -69,12 +85,29 @@ export interface SankeyLink {
   categoryId?: string;
 }
 
+/** Le bilan des entrées et sorties du logement, dans l'unité du modèle. */
+export interface EnergyBalance {
+  /** Tiré du réseau. `null` sans compteur général : on ne le connaît pas. */
+  imported: number | null;
+  /** Réinjecté au réseau. `null` quand rien ne permet de le connaître. */
+  exported: number | null;
+  /** Produit par les appareils déclarés comme production. */
+  produced: number;
+}
+
 export interface SankeyModel {
+  /** Ce que le logement CONSOMME : réseau + production − export. */
   total: number;
   measured: number;
   unmeasured: number;
   /** Vrai quand aucun compteur général n'existe : le total n'est qu'une somme partielle. */
   partial: boolean;
+  balance: EnergyBalance;
+  /**
+   * Vrai quand le non-mesuré peut contenir de l'export, faute de le connaître : sur une période,
+   * le rapport de Homey ne donne que l'importé.
+   */
+  unmeasuredMayIncludeExport: boolean;
   nodes: SankeyNode[];
   links: SankeyLink[];
 }
@@ -104,11 +137,22 @@ export interface SankeyOptions {
   minZoneShare?: number;
   /** Part de SA PIÈCE sous laquelle un appareil est regroupé. */
   minDeviceShare?: number;
+  /**
+   * Faux quand le compteur ne rend que l'importé (rapports de période) : l'export est alors
+   * inconnu, et non nul. Vrai par défaut — en instantané, le compteur est net.
+   */
+  exportKnown?: boolean;
 }
 
 const DEFAULTS = { maxPerZone: 5, minWatts: 0.05, minZoneShare: 0.01, minDeviceShare: 0.04 };
 
 export const SOURCE_ID = 'source';
+
+/**
+ * Part de la production connue sous laquelle un export excédentaire est mis sur le compte du
+ * décalage entre deux relevés plutôt que d'un onduleur caché.
+ */
+const HIDDEN_PRODUCTION_TOLERANCE = 0.05;
 /**
  * Branche de ce que le compteur voit et qu'aucun appareil n'explique. Feuille.
  *
@@ -119,8 +163,21 @@ export const UNMEASURED_ID = 'branch:__unmeasured__';
 /** Regroupement des pièces négligeables. Feuille. */
 export const TINY_ZONE_ID = 'zone:__tiny__';
 
+/** Entrée réseau, quand le logement en a plusieurs. */
+export const GRID_ID = 'input:grid';
+/** Entrée production locale. */
+export const SOLAR_ID = 'input:solar';
+/**
+ * L'entrée qu'aucun appareil ne nomme. Avec un compteur : la production qu'il PROUVE en
+ * réinjectant plus que la production connue. Sans compteur : ce que la production ne couvre pas
+ * des appareils mesurés, réseau ou autre — rien ne permet de trancher.
+ */
+export const OTHER_SOURCE_ID = 'input:other';
+/** Réinjection au réseau. Feuille, au même titre qu'une charge. */
+export const EXPORT_ID = 'output:export';
+
 /** Les nœuds qui n'ont volontairement aucun détail en dessous. */
-export const LEAF_NODES: ReadonlySet<string> = new Set([UNMEASURED_ID, TINY_ZONE_ID]);
+export const LEAF_NODES: ReadonlySet<string> = new Set([UNMEASURED_ID, TINY_ZONE_ID, EXPORT_ID]);
 
 export function buildSankey(devices: readonly FlowDevice[], options: SankeyOptions = {}): SankeyModel {
   const grouping = options.grouping ?? GROUPINGS['category+zone'] as readonly Grouping[];
@@ -129,28 +186,103 @@ export function buildSankey(devices: readonly FlowDevice[], options: SankeyOptio
   const minZoneShare = options.minZoneShare ?? DEFAULTS.minZoneShare;
   const minDeviceShare = options.minDeviceShare ?? DEFAULTS.minDeviceShare;
 
-  const mains = devices.filter((d) => d.cumulative && isPositive(d.watts));
-  const loads = devices.filter((d) => !d.cumulative && isPositive(d.watts));
+  const exportKnown = options.exportKnown ?? true;
+
+  // Le compteur n'est PAS filtré sur le signe : négatif, il réinjecte. Les charges et la
+  // production le sont, une valeur négative n'y ayant pas de sens dans ce modèle.
+  const mains = devices.filter((d) => d.cumulative && Number.isFinite(d.watts));
+  const producers = devices.filter((d) => !d.cumulative && d.solar === true && isPositive(d.watts));
+  const loads = devices.filter((d) => !d.cumulative && d.solar !== true && isPositive(d.watts));
 
   // La somme des charges se calcule après avoir résolu les sous-compteurs : un enfant est déjà
   // compté dans le total de son parent, l'ajouter gonflerait le logement.
   const measured = round(measuredTotal(loads));
-  const mainsTotal = round(mains.reduce((sum, d) => sum + d.watts, 0));
+  const produced = round(producers.reduce((sum, d) => sum + d.watts, 0));
   const partial = mains.length === 0;
-  const total = partial ? measured : mainsTotal;
+  const net = round(mains.reduce((sum, d) => sum + d.watts, 0));
 
-  // Un compteur qui verrait MOINS que la somme des appareils signalerait une estimation trop
-  // haute ou un double comptage : on ne dessine pas de branche négative, et on ne corrige pas le
-  // total en douce — le déséquilibre reste visible.
+  // --- Le bilan des entrées --------------------------------------------------
+  // Consommation = réseau + production − export. Sans compteur, ni le réseau ni l'export ne sont
+  // connus : la production couvre ce qu'elle peut des appareils mesurés, le reste vient d'une
+  // origine qu'on ne nomme pas, et son surplus part vers une destination qu'on ne nomme pas non
+  // plus — export ou consommation non mesurée, rien ne permet de trancher.
+  let imported: number | null;
+  let exported: number | null;
+  let otherSource = 0;
+  let total: number;
+  if (partial) {
+    imported = null;
+    exported = null;
+    otherSource = round(Math.max(0, measured - produced));
+    // Le surplus éventuel ne traverse pas le logement : il part directement de la production.
+    total = measured;
+  } else {
+    imported = round(Math.max(0, net));
+    exported = round(Math.max(0, -net));
+    // Un export supérieur à la production connue PROUVE une production que personne ne déclare :
+    // un onduleur absent de Homey. On la dessine, et on lui attribue aussi ce que les appareils
+    // mesurés consomment au-delà du bilan — elle est la seule à pouvoir les alimenter.
+    //
+    // Sans cette preuve, un excédent des appareils sur le compteur n'est PAS une production : c'est
+    // une estimation trop haute ou un double comptage, et le déséquilibre reste visible.
+    //
+    // Le compteur et l'onduleur ne se mettent pas à jour au même instant : quelques watts d'écart
+    // ne prouvent rien, d'où la tolérance avant de conclure.
+    const gap = Math.max(0, exported - produced);
+    const hidden = gap > Math.max(minWatts, produced * HIDDEN_PRODUCTION_TOLERANCE) ? gap : 0;
+    otherSource = hidden > 0
+      ? round(hidden + Math.max(0, measured - (imported + produced + hidden - exported)))
+      : 0;
+    total = round(imported + produced + otherSource - exported);
+  }
   const unmeasured = round(Math.max(0, total - measured));
+  // Sans compteur, le surplus de production sort par la branche d'export, sous un libellé qui
+  // avoue l'ignorance — voir plus haut.
+  const surplus = partial ? round(Math.max(0, produced - measured)) : 0;
+
+  /** Plusieurs entrées, ou une sortie vers le réseau : le logement devient un nœud à part. */
+  const multiInput = produced > 0 || (exported ?? 0) > 0;
+  const mainsLabel = mains.length === 1 ? (mains[0] as FlowDevice).name : mains.length > 1 ? 'Compteurs' : 'Appareils mesurés';
 
   const nodes: SankeyNode[] = [{
     id: SOURCE_ID,
-    label: mains.length === 1 ? (mains[0] as FlowDevice).name : mains.length > 1 ? 'Compteurs' : 'Appareils mesurés',
+    label: multiInput ? 'Logement' : mainsLabel,
     watts: total,
     depth: 0,
   }];
   const links: SankeyLink[] = [];
+
+  if (multiInput) {
+    const producedLabel = producers.length === 1 ? (producers[0] as FlowDevice).name : 'Production solaire';
+    // L'export puise d'abord dans la production connue : c'est elle qui produit le surplus.
+    const out = partial ? surplus : (exported ?? 0);
+    const fromSolar = round(Math.min(out, produced));
+    const fromOther = round(out - fromSolar);
+
+    if (!partial && (imported ?? 0) > 0) {
+      nodes.push({ id: GRID_ID, label: mainsLabel, watts: imported as number, depth: -1 });
+      links.push({ from: GRID_ID, to: SOURCE_ID, watts: imported as number });
+    }
+    if (produced > 0) {
+      nodes.push({ id: SOLAR_ID, label: producedLabel, watts: produced, depth: -1 });
+      if (produced - fromSolar > 0) links.push({ from: SOLAR_ID, to: SOURCE_ID, watts: round(produced - fromSolar) });
+      if (fromSolar > 0) links.push({ from: SOLAR_ID, to: EXPORT_ID, watts: fromSolar });
+    }
+    if (otherSource > 0) {
+      nodes.push({
+        id: OTHER_SOURCE_ID, depth: -1, watts: otherSource,
+        label: partial ? 'Réseau ou autre' : 'Production non mesurée',
+      });
+      if (otherSource - fromOther > 0) links.push({ from: OTHER_SOURCE_ID, to: SOURCE_ID, watts: round(otherSource - fromOther) });
+      if (fromOther > 0) links.push({ from: OTHER_SOURCE_ID, to: EXPORT_ID, watts: fromOther });
+    }
+    if (out > 0) {
+      nodes.push({
+        id: EXPORT_ID, depth: 0, watts: round(out),
+        label: partial ? 'Surplus non consommé' : 'Export réseau',
+      });
+    }
+  }
 
   // --- Sous-compteurs : ce qu'ils affichent CONTIENT leurs enfants -------
   const childrenOf = new Map<string, FlowDevice[]>();
@@ -311,7 +443,11 @@ export function buildSankey(devices: readonly FlowDevice[], options: SankeyOptio
     links.push({ from: SOURCE_ID, to: UNMEASURED_ID, watts: unmeasured });
   }
 
-  return { total, measured, unmeasured, partial, nodes, links };
+  return {
+    total, measured, unmeasured, partial, nodes, links,
+    balance: { imported, exported: exportKnown ? exported : null, produced },
+    unmeasuredMayIncludeExport: !exportKnown && produced > 0 && unmeasured > 0,
+  };
 }
 
 /**

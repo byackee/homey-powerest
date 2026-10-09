@@ -190,3 +190,32 @@ test('une reconnexion du socket relance un rafraîchissement', async () => {
   assert.ok(current.getDevicesCalls > before, 'aucune relecture après reconnexion');
   hub.stop();
 });
+
+test('la puissance instantanée suit le temps réel, pas le relevé du démarrage', async () => {
+  // Signalé sur le forum : le diagramme « Maintenant » restait figé sur une valeur. Le cache de
+  // homey-api ne réécrit `capabilitiesObj` que pour les capabilities auxquelles on est abonné.
+  const meter = new FakeDevice({
+    id: 'p1', name: 'P1', class: 'sensor',
+    capabilities: ['measure_power'], values: { measure_power: 420 },
+    energyObj: { cumulative: true },
+  });
+  const light = lamp();
+  const hub = await startedHub([meter, light]);
+  assert.equal(hub.getDevice('p1')?.watts, 420);
+
+  const live = meter.latest('measure_power');
+  assert.ok(live, 'aucun abonnement à measure_power');
+  live.emit(-1350);
+  assert.equal(hub.getDevice('p1')?.watts, -1350, 'la valeur reçue n’est pas restituée');
+  assert.equal(meter.capabilitiesObj['measure_power']?.value, 420, 'le test doit prouver que le cache reste figé');
+
+  assert.equal(light.latest('measure_power'), undefined, 'un appareil sans mesure ne doit pas être abonné');
+
+  // Un rafraîchissement périodique (servi par le cache) ne doit pas ramener la valeur figée.
+  await hub.refresh(true);
+  live.emit(-900);
+  await hub.refresh();
+  assert.equal(hub.getDevice('p1')?.watts, -900, 'le rafraîchissement a ramené la valeur du cache');
+  hub.stop();
+  assert.equal(live.destroyed, true, 'l’abonnement survit à l’arrêt du hub');
+});

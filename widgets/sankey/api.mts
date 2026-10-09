@@ -46,7 +46,7 @@ type FlowResponse = SankeyModel & {
  */
 function labels(homey: Homey.App['homey']): Record<string, string> {
   const keys = ['identified', 'unmeasured', 'sum_only', 'no_meter', 'nothing', 'of_home',
-    'no_reply', 'no_data', 'draw_failed', 'no_library'];
+    'no_reply', 'no_data', 'draw_failed', 'no_library', 'solar', 'exported', 'imported'];
   const out: Record<string, string> = {};
   for (const key of keys) {
     const value = homey.__(`widget.${key}`);

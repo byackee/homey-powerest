@@ -123,3 +123,35 @@ test('la date part en heure locale, comme les rapports de Homey', () => {
   assert.equal(isoDate(new Date(2026, 8, 3, 23, 30)), '2026-09-03');
   assert.equal(isoDate(new Date(2026, 0, 9)), '2026-01-09');
 });
+
+test('des panneaux listés comme appareil deviennent une production, pas un usage', () => {
+  const report: EnergyReport = {
+    electricity: {
+      devices: {
+        imported: { p1: { name: 'P1', period: 3 } },
+        consumed: {
+          pv: { name: 'Onduleur', period: 12 },
+          four: { name: 'Four', period: 2 },
+        },
+      },
+    },
+  };
+  const context = (id: string): DeviceContext | null =>
+    id === 'pv' ? { zoneName: 'Garage', deviceClass: 'solarpanel' } : null;
+  const devices = reportToFlowDevices(report, context);
+  const pv = devices.find((d) => d.id === 'pv');
+  assert.equal(pv?.solar, true);
+  assert.equal(pv?.cumulative, false);
+
+  // Le rapport ne donne pas l'export : le non-mesuré l'avoue.
+  const m = buildSankey(devices, { exportKnown: false });
+  assert.equal(m.balance.exported, null);
+  assert.equal(m.total, 15);
+  assert.equal(m.unmeasuredMayIncludeExport, true);
+});
+
+test('un compteur désigné à la main entre comme réseau', () => {
+  const report: EnergyReport = { electricity: { devices: { consumed: { p1: { name: 'P1', period: 4 } } } } };
+  const devices = reportToFlowDevices(report, () => ({ zoneName: null, categoryOverride: 'source:grid' }));
+  assert.equal(devices[0]?.cumulative, true);
+});

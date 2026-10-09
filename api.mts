@@ -82,10 +82,11 @@ export default {
 
   async getUsages({ homey }: Request): Promise<{
     categories: ReadonlyArray<{ id: string; label: string }>;
+    roles: ReadonlyArray<{ id: string; label: string }>;
     devices: ReturnType<PowerEstimateApp['listUsages']>;
   }> {
     const app = appOf({ homey });
-    return { categories: app.availableCategories(), devices: app.listUsages() };
+    return { categories: app.availableCategories(), roles: app.availableRoles(), devices: app.listUsages() };
   },
 
   async setUsage({ homey, body }: Request): Promise<{ ok: true }> {

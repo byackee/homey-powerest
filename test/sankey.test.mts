@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  buildSankey, GROUPINGS, LEAF_NODES, SOURCE_ID, TINY_ZONE_ID, UNMEASURED_ID, type FlowDevice,
+  buildSankey, EXPORT_ID, GRID_ID, GROUPINGS, LEAF_NODES, OTHER_SOURCE_ID, SOLAR_ID, SOURCE_ID,
+  TINY_ZONE_ID, UNMEASURED_ID, type FlowDevice,
 } from '../lib/sankey.mjs';
 
 const dev = (
@@ -296,4 +297,109 @@ test('les sous-compteurs survivent au changement de groupement', () => {
     assert.ok(m.nodes.some((n) => n.id === 'meter:ups'), `${key} : branche perdue`);
     assert.ok(Math.abs(out(m, SOURCE_ID) - m.total) < 0.01, `${key} : conservation rompue`);
   }
+});
+
+// --- Production solaire et réinjection --------------------------------------
+// Signalé sur le forum : le P1 disparaissait dès qu'il devenait négatif (export), les panneaux
+// étaient rangés parmi les usages, et l'export n'était dessiné nulle part.
+
+const solar = (watts: number): FlowDevice => ({ ...dev('pv', 'Onduleur', 'Garage', watts, 'solarpanel'), solar: true });
+const p1 = (watts: number): FlowDevice => dev('p1', 'P1', 'Maison', watts, null, true);
+const LOADS: FlowDevice[] = [
+  dev('l1', 'Lampe', 'Salon', 100, 'light'),
+  dev('lv', 'Lave-linge', 'Cuisine', 500, 'washingmachine'),
+];
+
+test('un compteur négatif reste le compteur : il réinjecte', () => {
+  const m = buildSankey([p1(-1400), solar(2000), ...LOADS]);
+  assert.equal(m.partial, false, 'le P1 ne doit pas disparaître quand il exporte');
+  assert.deepEqual(m.balance, { imported: 0, exported: 1400, produced: 2000 });
+  // Consommation = 0 importé + 2000 produits − 1400 exportés.
+  assert.equal(m.total, 600);
+  assert.equal(m.unmeasured, 0);
+});
+
+test('la production est une entrée, jamais un usage', () => {
+  const m = buildSankey([p1(-1400), solar(2000), ...LOADS]);
+  assert.ok(!m.nodes.some((n) => n.depth > 0 && n.label === 'Onduleur'), 'l’onduleur est rangé parmi les usages');
+  const pv = m.nodes.find((n) => n.id === SOLAR_ID);
+  assert.ok(pv);
+  assert.equal(pv.depth, -1);
+  assert.equal(pv.watts, 2000);
+});
+
+test('le surplus part de la production vers l’export, le reste alimente le logement', () => {
+  const m = buildSankey([p1(-1400), solar(2000), ...LOADS]);
+  assert.equal(into(m, EXPORT_ID), 1400);
+  assert.equal(m.links.find((l) => l.from === SOLAR_ID && l.to === EXPORT_ID)?.watts, 1400);
+  assert.equal(into(m, SOURCE_ID), m.total);
+  assert.ok(Math.abs(out(m, SOURCE_ID) - m.total) < 0.01, 'le logement ne redistribue pas ce qu’il reçoit');
+  assert.ok(!m.nodes.some((n) => n.id === GRID_ID), 'rien n’est importé : pas d’entrée réseau');
+});
+
+test('réseau et solaire alimentent ensemble le logement', () => {
+  const m = buildSankey([p1(300), solar(500), ...LOADS, dev('x', 'Four', 'Cuisine', 150, 'oven')]);
+  assert.deepEqual(m.balance, { imported: 300, exported: 0, produced: 500 });
+  assert.equal(m.total, 800);
+  assert.equal(m.unmeasured, 50);
+  assert.equal(m.links.find((l) => l.from === GRID_ID)?.watts, 300);
+  assert.equal(m.links.find((l) => l.from === SOLAR_ID && l.to === SOURCE_ID)?.watts, 500);
+  assert.ok(!m.nodes.some((n) => n.id === EXPORT_ID));
+});
+
+test('un export sans production déclarée prouve un onduleur absent de Homey', () => {
+  const m = buildSankey([p1(-800), ...LOADS]);
+  const other = m.nodes.find((n) => n.id === OTHER_SOURCE_ID);
+  assert.ok(other, 'la production cachée doit être dessinée');
+  // Elle exporte 800 W et alimente les 600 W mesurés.
+  assert.equal(other.watts, 1400);
+  assert.equal(into(m, EXPORT_ID), 800);
+  assert.equal(m.total, 600);
+});
+
+test('sans solaire ni export, le diagramme ne change pas de forme', () => {
+  const m = buildSankey([p1(700), ...LOADS]);
+  assert.equal(m.nodes.find((n) => n.id === SOURCE_ID)?.label, 'P1');
+  assert.ok(!m.nodes.some((n) => n.depth === -1 || n.id === EXPORT_ID));
+});
+
+test('un excédent des appareils sans export ne fabrique pas de production', () => {
+  // Estimation trop haute : le déséquilibre doit rester visible, pas être comblé en douce.
+  const m = buildSankey([p1(400), ...LOADS]);
+  assert.ok(!m.nodes.some((n) => n.id === OTHER_SOURCE_ID));
+  assert.equal(m.total, 400);
+});
+
+test('sans compteur, le surplus solaire est avoué comme tel', () => {
+  const m = buildSankey([solar(1000), ...LOADS]);
+  assert.equal(m.partial, true);
+  assert.equal(m.total, 600);
+  assert.deepEqual(m.balance, { imported: null, exported: null, produced: 1000 });
+  assert.equal(m.nodes.find((n) => n.id === EXPORT_ID)?.watts, 400);
+  assert.equal(into(m, SOURCE_ID), 600);
+});
+
+test('sans compteur, ce que le solaire ne couvre pas vient d’une origine inconnue', () => {
+  const m = buildSankey([solar(200), ...LOADS]);
+  assert.equal(m.nodes.find((n) => n.id === OTHER_SOURCE_ID)?.watts, 400);
+  assert.ok(!m.nodes.some((n) => n.id === EXPORT_ID));
+  assert.equal(into(m, SOURCE_ID), 600);
+});
+
+test('une production à l’arrêt la nuit ne laisse aucune trace', () => {
+  const m = buildSankey([p1(700), solar(0), ...LOADS]);
+  assert.ok(!m.nodes.some((n) => n.depth === -1));
+  assert.equal(m.total, 700);
+});
+
+test('export inconnu (période) : le non-mesuré peut contenir l’export', () => {
+  const m = buildSankey([p1(3), solar(10), ...LOADS.map((d) => ({ ...d, watts: d.watts / 1000 }))], { exportKnown: false });
+  assert.equal(m.balance.exported, null);
+  assert.equal(m.unmeasuredMayIncludeExport, true);
+});
+
+test('quelques watts d’écart entre P1 et onduleur ne fabriquent pas un onduleur caché', () => {
+  // Les deux relevés ne tombent pas au même instant : 500 W exportés pour 499,99 W produits.
+  const m = buildSankey([p1(-500), solar(499.99), ...LOADS]);
+  assert.ok(!m.nodes.some((n) => n.id === OTHER_SOURCE_ID));
 });

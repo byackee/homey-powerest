@@ -54,7 +54,10 @@
     "no_data": "no data",
     "draw_failed": "Cannot draw",
     "no_library": "Drawing library missing",
-    "double_counted": "Source not excluded from Energy: it is counted twice there."
+    "double_counted": "Source not excluded from Energy: it is counted twice there.",
+    "solar": "solar",
+    "exported": "exported",
+    "imported": "from grid"
   },
   "settings": {
     "status": "Status",
@@ -76,6 +79,23 @@
     "powered_by": "Powered by…",
     "nothing": "nothing to report",
     "error": "error",
-    "flat_rate": "(Homey estimate)"
+    "flat_rate": "(Homey estimate)",
+    "usages_group": "Usage",
+    "inputs_group": "Energy input"
+  },
+  "flow": {
+    "home": "Home",
+    "meters": "Meters",
+    "measured_devices": "Measured devices",
+    "solar": "Solar production",
+    "hidden_production": "Unmeasured production",
+    "grid_or_other": "Grid or other",
+    "export": "Grid export",
+    "surplus": "Unused surplus",
+    "unmeasured_or_export": "Unmeasured or exported"
+  },
+  "role": {
+    "grid": "Grid meter (input)",
+    "solar": "Solar production (input)"
   }
 }

@@ -24,6 +24,7 @@
     --unknown: #b9b8b1;
     --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
     --s4: #eda100; --s5: #e87ba4; --s6: #008300;
+    --solar: #e0a100;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) .viz {
@@ -32,6 +33,7 @@
       --unknown: #6b6a64;
       --s1: #3987e5; --s2: #d95926; --s3: #199e70;
       --s4: #c98500; --s5: #d55181; --s6: #008300;
+      --solar: #f2b52b;
     }
   }
   :root[data-theme="dark"] .viz {
@@ -40,6 +42,7 @@
     --unknown: #6b6a64;
     --s1: #3987e5; --s2: #d95926; --s3: #199e70;
     --s4: #c98500; --s5: #d55181; --s6: #008300;
+    --solar: #f2b52b;
   }
 
   html, body { margin: 0; padding: 0; }
@@ -146,7 +149,8 @@
     var L = { identified: 'identified', unmeasured: 'unmeasured', sum_only: 'sum of devices',
               no_meter: 'no main meter', nothing: 'No device reports power.', of_home: 'of the home',
               no_reply: 'no reply from the app', no_data: 'no data',
-              draw_failed: 'Cannot draw', no_library: 'Drawing library missing' };
+              draw_failed: 'Cannot draw', no_library: 'Drawing library missing',
+              solar: 'solar', exported: 'exported', imported: 'from grid' };
     var tip = document.getElementById('tip');
 
     function el(tag, attrs) {
@@ -190,9 +194,11 @@
       var H = Math.max(160, svg.clientHeight || 320);
       // La marge se déduit des seules étiquettes qui la réclament : celles de la dernière colonne.
       // Les nœuds intermédiaires écrivent par-dessus le dessin, ils ne consomment aucune marge.
-      var deepest = 0;
-      m.nodes.forEach(function (n) { deepest = Math.max(deepest, n.depth); });
-      var lastLabels = m.nodes.filter(function (n) { return n.depth === deepest; })
+      // Ce sont les nœuds SANS sortie : d3-sankey les aligne tous sur la dernière colonne — le
+      // non-mesuré et l'export y compris, pas seulement les appareils.
+      var hasOut = {};
+      m.links.forEach(function (l) { hasOut[l.from] = true; });
+      var lastLabels = m.nodes.filter(function (n) { return !hasOut[n.id]; })
         .map(function (n) { return n.label; });
       var LABEL_ROOM = labelRoom(lastLabels, W);
       svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
@@ -208,6 +214,9 @@
       var css = getComputedStyle(document.getElementById('viz'));
       var neutral = css.getPropertyValue('--unknown').trim();
       var UNMEASURED = 'branch:__unmeasured__';
+      var SOLAR = 'input:solar', OTHER = 'input:other', GRID = 'input:grid', EXPORT = 'output:export';
+      var solarColor = css.getPropertyValue('--solar').trim();
+      var gridColor = css.getPropertyValue('--text-secondary').trim();
 
       /**
        * Une couleur par BRANCHE de premier niveau, quel que soit le regroupement choisi.
@@ -219,7 +228,11 @@
        * par l'éclairage et le multimédia n'appartient à aucun des deux : la peindre de l'un
        * mentirait, et la neutralité est ici une information, pas un défaut.
        */
+      // Les entrées ont leur propre couleur, hors de la palette des usages : le soleil ne doit pas
+      // pouvoir être confondu avec une branche de consommation.
       var branchColor = {}, slot = 0;
+      branchColor[SOLAR] = solarColor;
+      branchColor[GRID] = gridColor;
       m.nodes.filter(function (n) { return n.depth === 1; }).forEach(function (n) {
         if (n.id === UNMEASURED) return;      // absence, pas branche : la hachure lui suffit
         branchColor[n.id] = css.getPropertyValue(SLOTS[slot++ % SLOTS.length]).trim();
@@ -227,7 +240,9 @@
 
       var order = m.nodes.slice().sort(function (a, b) { return a.depth - b.depth; });
       order.forEach(function (n) {
-        if (branchColor[n.id]) return;
+        // Le logement et le non-mesuré n'appartiennent à aucune entrée : même alimentés par le seul
+        // soleil, les peindre en jaune ferait lire « production » là où il y a consommation.
+        if (branchColor[n.id] || n.id === 'source' || n.id === UNMEASURED) return;
         var parents = m.links.filter(function (l) { return l.to === n.id; });
         var seenColors = {};
         parents.forEach(function (l) {
@@ -241,7 +256,9 @@
       function colorOf(n) { return (n && branchColor[n.id]) || neutral; }
 
       var index = {};
-      var nodes = m.nodes.map(function (n, i) { index[n.id] = i; return Object.assign({}, n); });
+      // ⚠️ d3-sankey RÉÉCRIT `depth` avec son propre numéro de colonne : dès qu'il y a des entrées,
+      // le logement passe en colonne 1. Le niveau du modèle est donc gardé sous un autre nom.
+      var nodes = m.nodes.map(function (n, i) { index[n.id] = i; return Object.assign({}, n, { level: n.depth }); });
       var links = m.links.map(function (l) {
         return { source: index[l.from], target: index[l.to], value: Math.max(l.watts, 0.001), categoryId: l.categoryId };
       });
@@ -294,16 +311,19 @@
 
       graph.nodes.forEach(function (n) {
         var h = Math.max(1, n.y1 - n.y0);
-        var color = n.depth === 0 ? css.getPropertyValue('--text-secondary').trim() : colorOf(n);
+        var color = n.level === 0 && n.id !== EXPORT ? css.getPropertyValue('--text-secondary').trim() : colorOf(n);
         var rect = el('rect', { x: n.x0, y: n.y0, width: n.x1 - n.x0, height: h, rx: 2, fill: color, class: 'node' });
+        // Une entrée ou l'export ne sont pas une part de la consommation : 2 000 W de soleil pour
+        // 600 W consommés donneraient « 333 % du logement ».
+        var outside = n.level < 0 || n.id === EXPORT;
         var pct = m.total ? Math.round(n.watts / m.total * 100) : 0;
-        detail(rect, n.label + '   ' + fmt(n.watts) + ' ' + UNIT + '   ·   ' + pct + ' % ' + L.of_home);
+        detail(rect, n.label + '   ' + fmt(n.watts) + ' ' + UNIT + (outside ? '' : '   ·   ' + pct + ' % ' + L.of_home));
         svg.appendChild(rect);
 
         if (h < 9) return;
         // Le nom seul. Les watts encombraient chaque bande alors qu'on ne les lit qu'une à la
         // fois ; ils passent au clic, où ils ont la place d'être complets.
-        var dim = n.depth > 0 && !branchColor[n.id];
+        var dim = n.level > 0 && !branchColor[n.id];
         var t = el('text', { x: n.x1 + 7, y: n.y0 + h / 2 + 3.5, class: 'lbl' + (dim ? ' dim' : '') });
         t.textContent = cut(n.label, labelChars(LABEL_ROOM));
         svg.appendChild(t);
@@ -390,6 +410,14 @@
         var cost = (typeof m.cost === 'number' && m.cost > 0)
           ? ' · <b>' + m.cost.toFixed(2) + (m.currency ? ' ' + m.currency : '') + '</b>'
           : '';
+        // Le bilan des entrées, seulement quand il dit quelque chose : sans production ni export,
+        // l'en-tête reste celui d'avant.
+        var b = m.balance || {};
+        var flows = '';
+        if (b.produced > 0) flows += ' · <b>' + fmt(b.produced) + ' ' + UNIT + '</b> ' + L.solar;
+        if (b.produced > 0 && b.imported > 0) flows += ' · <b>' + fmt(b.imported) + ' ' + UNIT + '</b> ' + L.imported;
+        if (b.exported > 0) flows += ' · <b>' + fmt(b.exported) + ' ' + UNIT + '</b> ' + L.exported;
+        cost = flows + cost;
         document.getElementById('hero').innerHTML = fmt(m.total) + '<span class="u">' + UNIT + '</span>';
         document.getElementById('sub').innerHTML = m.partial
           ? L.sum_only + ' — <b>' + L.no_meter + '</b>' + cost

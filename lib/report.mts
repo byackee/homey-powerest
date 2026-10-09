@@ -23,6 +23,7 @@
  * diagramme additionnerait des unités incomparables et rendrait un total qui ne veut rien dire.
  */
 
+import { energyRole, producedWatts } from './roles.mjs';
 import type { FlowDevice } from './sankey.mjs';
 
 /** Les périodes offertes, et le paramètre que chacune exige de la Web API. */
@@ -73,6 +74,7 @@ export interface EnergyReport {
 export interface DeviceContext {
   zoneName: string | null;
   deviceClass?: string | null;
+  virtualClass?: string | null;
   deviceType?: string | null;
   categoryOverride?: string | null;
   poweredBy?: string | null;
@@ -135,15 +137,24 @@ export function reportToFlowDevices(
   const out: FlowDevice[] = [];
 
   const push = (id: string, entry: ReportEntry, cumulative: boolean): void => {
-    const kwh = num(entry.period);
-    if (kwh <= 0) return;
     const known = context(id);
+    // Le rôle avant le filtre de signe : une prise déclarée « panneau solaire » produit en négatif.
+    const role = energyRole({
+      cumulative,
+      deviceClass: known?.deviceClass ?? null,
+      virtualClass: known?.virtualClass ?? null,
+      override: known?.categoryOverride ?? null,
+    });
+    const raw = num(entry.period);
+    const kwh = role === 'solar' ? producedWatts(raw, known?.deviceClass, known?.virtualClass) : raw;
+    if (kwh <= 0) return;
     out.push({
       id,
       name: typeof entry.name === 'string' && entry.name !== '' ? entry.name : id,
       zoneName: known?.zoneName ?? null,
       watts: kwh,
-      cumulative,
+      cumulative: role === 'grid',
+      solar: role === 'solar',
       deviceClass: known?.deviceClass ?? null,
       deviceType: known?.deviceType ?? null,
       categoryOverride: known?.categoryOverride ?? null,
