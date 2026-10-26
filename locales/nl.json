@@ -28,7 +28,8 @@
     "profile_error": "Profiel kon niet worden geladen",
     "source_gone": "Het bronapparaat is niet meer beschikbaar",
     "exclude_manually": "Dubbeltelling: open het bronapparaat en zet Instellingen → Energie → Uitsluiten van Energie aan. Homey staat een app dit niet toe.",
-    "hidden_but_partial": "Het bronapparaat is verborgen maar dit apparaat neemt __count__ van zijn functies niet over. Maak het weer zichtbaar."
+    "hidden_but_partial": "Het bronapparaat is verborgen maar dit apparaat neemt __count__ van zijn functies niet over. Maak het weer zichtbaar.",
+    "no_library_profile": "De bibliotheek heeft geen bruikbaar profiel voor dit apparaat. Blijf bij handmatige invoer en vul het vermogen in."
   },
   "category": {
     "light": "Verlichting",

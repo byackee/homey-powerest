@@ -12,7 +12,7 @@ import Homey from 'homey';
 import type PowerEstimateApp from '../../app.mjs';
 import type { Candidate } from '../../app.mjs';
 import { plannedCapabilities } from '../../lib/mirror.mjs';
-import { SUPPORTED_STRATEGIES } from '../../lib/types.mjs';
+import { keepsProfile, type MetaOutcome } from '../../lib/manual.mjs';
 
 /** Ce que la vue de pairing reçoit. Volontairement plat : elle n'a pas de logique. */
 interface CandidateView {
@@ -70,16 +70,18 @@ export default class EstimatorDriver extends Homey.Driver {
       // profil, qui sera de toute façon nécessaire dans la seconde qui suit.
       let usable = candidate.match !== null;
       if (candidate.match !== null) {
+        let outcome: MetaOutcome;
         try {
-          const meta = await this.app.getLibrary().getMeta(candidate.match);
-          usable = SUPPORTED_STRATEGIES.has(meta.strategy);
-          if (!usable) this.log(`[pair] ${candidate.match.model} : stratégie ${meta.strategy} non gérée, saisie manuelle`);
+          outcome = { strategy: (await this.app.getLibrary().getMeta(candidate.match)).strategy };
         } catch (err) {
-          // Une bibliothèque injoignable ne doit pas bloquer l'ajout : la saisie manuelle marche
-          // hors ligne, et c'est un bien meilleur repli qu'un appareil qu'on ne peut pas créer.
-          usable = false;
-          this.log(`[pair] profil ${candidate.match.model} indisponible, saisie manuelle : ${String(err)}`);
+          outcome = { error: err };
         }
+        // Un échec passager ne fige plus l'appareil en saisie manuelle : il naît en mode profil et
+        // `loadProfile` réessaie. Seul un refus définitif de la bibliothèque mène au manuel.
+        usable = keepsProfile(outcome);
+        const why = 'strategy' in outcome ? `stratégie ${outcome.strategy}` : describe(outcome.error);
+        if (!usable) this.app.note('pair', `${candidate.match.model} : ${why}, saisie manuelle`);
+        else if ('error' in outcome) this.app.note('pair!', `${candidate.match.model} : ${why}, nouvel essai après l'ajout`);
       }
 
       return {
@@ -147,4 +149,8 @@ function toView(candidate: Candidate): CandidateView {
     warning,
     homeyWatts: candidate.homeyWatts,
   };
+}
+
+function describe(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

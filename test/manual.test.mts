@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { manualModel, effectiveMode, isPowerMode } from '../lib/manual.mjs';
+import { manualModel, effectiveMode, isPowerMode, keepsProfile, isUnconfiguredManual } from '../lib/manual.mjs';
+import { ProfileError } from '../lib/types.mjs';
 import { computePower } from '../lib/strategies.mjs';
 
 const base = { mode: 'fixed', powerOff: 0.4, powerOn: 14, powerMin: 0, powerMax: 0 };
@@ -66,4 +67,30 @@ test('isPowerMode refuse ce qui n’est pas un mode', () => {
   assert.ok(isPowerMode('fixed'));
   assert.ok(!isPowerMode('lut'));
   assert.ok(!isPowerMode(3));
+});
+
+test('un échec passager à l\'appairage garde le profil : seul un refus définitif mène au manuel', () => {
+  // Le cas des 79 lampes Hue : une requête manquée figeait l'appareil à 0 W en saisie manuelle.
+  assert.equal(keepsProfile({ error: new ProfileError('HTTP 503', 'network') }), true);
+  assert.equal(keepsProfile({ error: new DOMException('The operation timed out.', 'TimeoutError') }), true);
+  assert.equal(keepsProfile({ error: new TypeError('fetch failed') }), true);
+
+  assert.equal(keepsProfile({ error: new ProfileError('absent', 'not_found') }), false);
+  assert.equal(keepsProfile({ error: new ProfileError('sans model.json', 'malformed') }), false);
+  assert.equal(keepsProfile({ strategy: 'lut' }), true);
+  assert.equal(keepsProfile({ strategy: 'composite' }), false);
+});
+
+test('seul un appareil manuel jamais configuré est rapproché à nouveau de la bibliothèque', () => {
+  const blank = { mode: 'fixed', powerOff: 0, powerOn: 0, powerMin: 0, powerMax: 0 };
+  assert.equal(isUnconfiguredManual('', blank), true);
+  assert.equal(isUnconfiguredManual(undefined, blank), true);
+
+  // Une seule puissance saisie, et la main de l'utilisateur fait foi.
+  assert.equal(isUnconfiguredManual('', { ...blank, powerOn: 14 }), false);
+  assert.equal(isUnconfiguredManual('', { ...blank, powerOff: 0.4 }), false);
+  // Le mode linéaire est un choix explicite, jamais l'état laissé par l'appairage.
+  assert.equal(isUnconfiguredManual('', { ...blank, mode: 'linear' }), false);
+  // Un modèle déjà retenu n'a pas besoin d'être retrouvé.
+  assert.equal(isUnconfiguredManual('LTW001', blank), false);
 });

@@ -16,7 +16,7 @@
  * des stratégies, donc un seul endroit où un défaut peut se cacher.
  */
 
-import type { ProfileModel } from './types.mjs';
+import { ProfileError, SUPPORTED_STRATEGIES, type ProfileModel, type Strategy } from './types.mjs';
 
 /** Comment la puissance d'un appareil est déterminée. */
 export type PowerMode = 'profile' | 'fixed' | 'linear';
@@ -79,6 +79,44 @@ export function effectiveMode(setting: unknown, hasProfile: boolean): PowerMode 
   const mode = isPowerMode(setting) ? setting : 'profile';
   if (mode === 'profile' && !hasProfile) return 'fixed';
   return mode;
+}
+
+/**
+ * Ce que l'appairage a appris du profil choisi : sa stratégie, ou l'erreur qui l'a empêché de la lire.
+ */
+export type MetaOutcome = { strategy: Strategy } | { error: unknown };
+
+/**
+ * Vrai quand l'appareil doit naître en mode profil.
+ *
+ * Seul un refus DÉFINITIF de la bibliothèque justifie la saisie manuelle : une stratégie non gérée,
+ * un profil absent ou illisible. Une coupure réseau, un délai dépassé ou toute erreur inconnue sont
+ * passagers, et l'appareil sait déjà réessayer avec un back-off.
+ *
+ * ⚠️ Traiter tout échec comme définitif était le défaut de la 1.2.0 : une seule requête manquée à
+ * l'appairage effaçait le modèle du `store`, et l'appareil restait à 0 W en « saisie manuelle »
+ * pour toujours — repasser le réglage sur « Profil mesuré » n'y pouvait rien, faute de modèle.
+ * 79 lampes Hue d'un même utilisateur sont tombées ainsi d'un coup.
+ */
+export function keepsProfile(outcome: MetaOutcome): boolean {
+  if ('strategy' in outcome) return SUPPORTED_STRATEGIES.has(outcome.strategy);
+  const err = outcome.error;
+  return !(err instanceof ProfileError) || err.code === 'network';
+}
+
+/**
+ * Vrai pour un appareil en saisie manuelle qui n'a JAMAIS été configuré, et ne mesure donc rien.
+ *
+ * C'est la signature exacte des appareils laissés par le défaut décrit dans `keepsProfile` : aucun
+ * modèle retenu, et toutes les puissances à leur valeur par défaut de zéro. Un tel appareil peut
+ * être rapproché à nouveau de la bibliothèque sans risque — il ne produit rien qu'on puisse perdre.
+ * Dès qu'une seule puissance est saisie, la main de l'utilisateur fait foi et on n'y touche plus.
+ */
+export function isUnconfiguredManual(storeModel: unknown, settings: ManualSettings): boolean {
+  if (typeof storeModel === 'string' && storeModel !== '') return false;
+  if (settings.mode !== 'fixed') return false;
+  return [settings.powerOff, settings.powerOn, settings.powerMin, settings.powerMax]
+    .every((value) => watts(value, 0) === 0);
 }
 
 /** Une puissance saisie, débarrassée du vide, du texte et du négatif. */

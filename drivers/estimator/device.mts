@@ -26,9 +26,10 @@ import type { LoadedProfile } from '../../runtime/library.mjs';
 import { accumulate, restoreMeter, roundKwh, shouldPersist, type MeterState } from '../../lib/energy.mjs';
 import { computePower } from '../../lib/strategies.mjs';
 import { toLightState, type HomeyLightCapabilities } from '../../lib/units.mjs';
-import { ProfileError } from '../../lib/types.mjs';
+import { ProfileError, SUPPORTED_STRATEGIES } from '../../lib/types.mjs';
 import { capabilityDiff, plannedCapabilities, writableCapabilities } from '../../lib/mirror.mjs';
-import { effectiveMode, manualModel } from '../../lib/manual.mjs';
+import { effectiveMode, isUnconfiguredManual, keepsProfile, manualModel, type MetaOutcome } from '../../lib/manual.mjs';
+import { matchDevice } from '../../lib/matching.mjs';
 
 /**
  * Capabilities de la source qui influencent la consommation.
@@ -80,6 +81,16 @@ export default class EstimatorDevice extends Homey.Device {
   private lostCapabilities: string[] = [];
   /** Dernier cumul réellement écrit dans le `store`, pour ne réécrire que ce qui a bougé. */
   private persistedKwh = 0;
+  /**
+   * Vrai pendant `onSettings`.
+   *
+   * `pending` ne suffit pas à le savoir : un `loadProfile` relancé par le timer, ou celui du
+   * démarrage encore en attente du réseau, peut tourner PENDANT que l'utilisateur enregistre. Il
+   * lirait alors les anciens réglages et pourrait réécrire le mode par-dessus sa saisie.
+   */
+  private settingsBusy = false;
+  /** Libellé de profil à écrire une fois `onSettings` terminé, où `setSettings` est interdit. */
+  private pendingLabel: string | null = null;
 
   private get app(): PowerEstimateApp {
     return this.homey.app as PowerEstimateApp;
@@ -139,7 +150,14 @@ export default class EstimatorDevice extends Homey.Device {
     }
     if (changedKeys.includes('mode')) {
       // Repasser en mode profil doit pouvoir déclencher le téléchargement qu'on avait évité.
-      await this.loadProfile(newSettings);
+      if (this.profileTimer) { this.homey.clearTimeout(this.profileTimer); this.profileTimer = null; }
+      this.settingsBusy = true;
+      try {
+        await this.loadProfile(newSettings);
+      } finally {
+        this.settingsBusy = false;
+      }
+      this.flushPendingLabel();
       return;
     }
     const recomputeKeys = ['min_mired', 'max_mired', 'power_off', 'power_on', 'power_min', 'power_max'];
@@ -210,7 +228,25 @@ export default class EstimatorDevice extends Homey.Device {
   }
 
   /** Charge le profil, puis branche les abonnements. Réessaie tant que le réseau manque. */
-  private async loadProfile(pending?: Record<string, unknown>): Promise<void> {
+  private async loadProfile(pending?: Record<string, unknown>, rematchAllowed = true): Promise<void> {
+    if (rematchAllowed && this.needsRematch(pending)) {
+      try {
+        await this.rematch(pending);
+      } catch (err) {
+        // Un refus définitif pendant `onSettings` remonte jusqu'à l'utilisateur, qui le voit.
+        if (pending !== undefined && !keepsProfile({ error: err })) throw err;
+        this.app.note('prof!', `${this.getName()} : ${describe(err)}`);
+        this.scheduleProfileRetry();
+        // Un appareil qui DEMANDE un profil n'a rien de juste à afficher en attendant. Un appareil
+        // resté en saisie manuelle continue, lui, comme avant : on retentera en arrière-plan.
+        const mode = this.setting('mode', pending);
+        if (mode !== 'fixed' && mode !== 'linear') {
+          await this.setUnavailable(this.homey.__('device.profile_error'));
+          return;
+        }
+      }
+    }
+
     const manufacturer = String(this.getStoreValue('manufacturer') ?? '');
     const model = String(this.getStoreValue('model') ?? '');
     const mode = this.setting('mode', pending);
@@ -235,7 +271,11 @@ export default class EstimatorDevice extends Homey.Device {
       const entry = index.get(manufacturer, model);
       if (!entry) throw new ProfileError(`profil ${manufacturer}/${model} absent de l'index`, 'not_found');
 
-      this.profile = await this.app.getLibrary().getProfile(entry);
+      const profile = await this.app.getLibrary().getProfile(entry);
+      // Un appareil né d'un échec réseau à l'appairage n'a jamais vu sa stratégie vérifiée.
+      const strategy = profile.model.calculation_strategy;
+      if (!SUPPORTED_STRATEGIES.has(strategy)) throw new ProfileError(`stratégie ${strategy} non gérée`, 'unsupported');
+      this.profile = profile;
       this.profileBackoff = PROFILE_RETRY_MIN_MS;
 
       await this.attach();
@@ -245,12 +285,124 @@ export default class EstimatorDevice extends Homey.Device {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.app.note('prof!', `${this.getName()} : ${message}`);
+      if (!keepsProfile({ error: err })) {
+        // Refus définitif : réessayer ne changerait rien, et rester en mode profil afficherait 0 W
+        // sans un mot. L'appareil repasse en saisie manuelle, comme l'appairage l'aurait fait.
+        await this.dropProfile(pending);
+        return;
+      }
       this.error('chargement du profil', message);
       await this.setUnavailable(this.homey.__('device.profile_error'));
       // Un profil absent ne se répare pas tout seul, mais une coupure réseau si : on retente dans
       // les deux cas, le back-off rendant la seconde situation peu coûteuse.
       this.scheduleProfileRetry();
     }
+  }
+
+  /**
+   * Vrai quand le `store` n'a retenu aucun modèle alors qu'il devrait.
+   *
+   * Deux cas : l'utilisateur a choisi « Profil mesuré », ou l'appareil est en saisie manuelle sans
+   * aucune puissance saisie — l'empreinte exacte d'un appareil figé par un échec réseau à
+   * l'appairage en 1.2.0. Le second n'est tenté que hors `onSettings` : il réécrit le mode, ce
+   * qui est interdit pendant que le SDK applique des réglages.
+   */
+  private needsRematch(pending?: Record<string, unknown>): boolean {
+    const storeModel = this.getStoreValue('model');
+    if (typeof storeModel === 'string' && storeModel !== '') return false;
+    const mode = this.setting('mode', pending);
+    if (mode !== 'fixed' && mode !== 'linear') return true;
+    return pending === undefined && !this.settingsBusy && isUnconfiguredManual(storeModel, {
+      mode,
+      powerOff: this.getSetting('power_off'),
+      powerOn: this.getSetting('power_on'),
+      powerMin: this.getSetting('power_min'),
+      powerMax: this.getSetting('power_max'),
+    });
+  }
+
+  /**
+   * Rapproche à nouveau la source de la bibliothèque et retient le modèle trouvé.
+   *
+   * Ne fait rien quand la bibliothèque n'a rien d'utilisable pour cette source. Lève quand la
+   * réponse ne peut pas ENCORE être connue — index ou hub pas prêts, réseau absent — pour que
+   * l'appelant réessaie plus tard au lieu de conclure.
+   */
+  private async rematch(pending?: Record<string, unknown>): Promise<void> {
+    const index = this.app.getIndex() ?? await this.app.warmIndex();
+    if (!index) throw new ProfileError('index indisponible', 'network');
+    const hub = this.app.getHub();
+    // Hub pas encore connecté au démarrage : une liste vide ne prouve pas que la source a disparu.
+    if (hub.listDevices().length === 0) throw new ProfileError('hub pas encore connecté', 'network');
+
+    const source = hub.getDevice(this.sourceId);
+    const found = source ? matchDevice(index, source) : null;
+    if (!found) return this.refuseRematch(pending);
+
+    let outcome: MetaOutcome;
+    try {
+      outcome = { strategy: (await this.app.getLibrary().getMeta(found.model)).strategy };
+    } catch (err) {
+      outcome = { error: err };
+    }
+    if (!keepsProfile(outcome)) return this.refuseRematch(pending);
+    if ('error' in outcome) throw outcome.error;
+
+    const label = `${found.model.manufacturerLabel ?? found.model.manufacturer} ${found.model.name}`;
+    await this.setStoreValue('manufacturer', found.model.manufacturer);
+    await this.setStoreValue('model', found.model.model);
+    this.app.note('prof', `${this.getName()} : profil ${label} retrouvé`);
+
+    if (pending === undefined && !this.settingsBusy) {
+      await this.setSettings({ mode: 'profile', profile_label: label });
+    } else {
+      this.pendingLabel = label;
+    }
+  }
+
+  /**
+   * La bibliothèque n'a rien d'utilisable pour cette source.
+   *
+   * Quand l'utilisateur vient de CHOISIR « Profil mesuré », le lui dire en refusant le réglage
+   * plutôt que de le laisser croire que l'appareil mesure quelque chose à 0 W.
+   */
+  private refuseRematch(pending?: Record<string, unknown>): void {
+    const mode = this.setting('mode', pending);
+    if (pending !== undefined && mode !== 'fixed' && mode !== 'linear') {
+      throw new ProfileError(this.homey.__('device.no_library_profile'), 'not_found');
+    }
+  }
+
+  /**
+   * Abandonne un profil que la bibliothèque refuse pour de bon, et repasse en saisie manuelle.
+   *
+   * Pendant `onSettings`, on refuse plutôt le réglage : l'erreur levée est affichée à
+   * l'utilisateur, qui sait ainsi pourquoi « Profil mesuré » ne prend pas.
+   */
+  private async dropProfile(pending?: Record<string, unknown>): Promise<void> {
+    this.profile = null;
+    await this.setStoreValue('manufacturer', '');
+    await this.setStoreValue('model', '');
+    if (pending !== undefined) throw new ProfileError(this.homey.__('device.no_library_profile'), 'not_found');
+    if (this.settingsBusy) {
+      this.pendingLabel = this.homey.__('pair.manual');
+    } else {
+      await this.setSettings({ mode: 'fixed', profile_label: this.homey.__('pair.manual') });
+    }
+    // Sans rapprochement : il retrouverait le même modèle, et le même refus, en boucle.
+    await this.loadProfile(undefined, false);
+  }
+
+  /** Écrit le libellé retenu pendant `onSettings`, une fois que le SDK a fini d'enregistrer. */
+  private flushPendingLabel(): void {
+    const label = this.pendingLabel;
+    if (label === null) return;
+    this.pendingLabel = null;
+    // Le SDK n'écrit les réglages soumis qu'après le retour de `onSettings` : un délai court évite
+    // que cette écriture soit écrasée par la sienne.
+    this.homey.setTimeout(() => {
+      this.setSettings({ profile_label: label }).catch((err: unknown) => this.app.note('prof!', describe(err)));
+    }, 1_000);
   }
 
   private scheduleProfileRetry(): void {

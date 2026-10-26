@@ -83,7 +83,9 @@
         var meta = document.createElement('div');
         meta.className = 'ld-meta';
         meta.textContent = item.profile
-          ? item.profile + ' · ' + item.strategy + ' · ' + t('pair.via') + ' ' + item.detail
+          // L'index ne publie plus la stratégie : elle vaut `null` jusqu'à l'ajout, et s'affichait
+          // telle quelle (« Hue White Ambiance A19 · null · via Model_ID »).
+          ? item.profile + (item.strategy ? ' · ' + item.strategy : '') + ' · ' + t('pair.via') + ' ' + item.detail
           : t('pair.no_profile_line');
         li.appendChild(meta);
 
